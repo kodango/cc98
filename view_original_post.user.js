@@ -22,8 +22,8 @@
     /* 返回原帖地址 */
     function get_orig_url(url)
     {
-        return url.replace(/reannounce/, "dispbbs").replace(/reply.*?&/g, "")
-            .replace(/&bm=/, "#");
+        return get_relative_url(url.replace(/reannounce/, "dispbbs").replace(/reply.*?&/g, "")
+            .replace(/&bm=/, "#"));
     }
 
     /* 处理回帖内容 */
@@ -36,9 +36,9 @@
         var ins_content = "[url=" + get_orig_url(location.href) + ",t="+(open_in_new_tab?'blank':'self') 
             +"][color=" + color + "]"+ prompt +"[/color][/url]";
 
-        text_area.innerHTML = content.substring(0, ins_pos) + ins_content + 
+        text_area.value = content.substring(0, ins_pos) + ins_content + 
             content.substring(ins_pos).replace(/(\[em\d{2}\])/g, "[noubb]$1[/noubb]")  // 不解释 [em**] 标签
-            .replace(/(\[upload=.*?)(,0)?(\])/g, "$1,1$3");  // 不自动展开图片
+            .replace(/(\[upload=[^,]*?)(,0)?(\])/g, "$1,1$3");  // 不自动展开图片
         
         text_area.setSelectionRange(text_area.selectionEnd-1, text_area.selectionEnd-1);
         text_area.focus();
@@ -47,14 +47,16 @@
     /* Main 函数入口 */
     function main()
     {
+        /* Process post content to add original post link */
         process_content();
 
+        /* Bind click event to submit button */
         var submit_btn = document.evaluate("//td[@class='tablebody2']//input[@type='submit']",
             document, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null).snapshotItem(0);
 
         submit_btn.addEventListener('click', function(e) {
             var text_area = document.getElementById("content");
-            text_area.innerHTML = get_relative_url(text_area.value);
+            text_area.value = get_relative_url(text_area.value);
         }, false);
     }
 
