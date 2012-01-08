@@ -49,7 +49,7 @@
     function main()
     {
         /* Variables definition */
-        var images, max_width, cur_width;
+        var images, max_width, cur_width, window_width;
 
         /* Get an array ofimages */
         images = document.querySelectorAll("a.clickloadImage img, img.resizeable");
@@ -81,21 +81,27 @@
 
         /* Set max width to the td node's width */
         max_width = get_parent(images[0], "td").offsetWidth;
-        images = Array.prototype.slice.call(images, 0);
+
+        /* Set window width */
+        window_width = window.innerWidth;
 
         /* Iterate each images and show */
+        images = Array.prototype.slice.call(images, 0);
         images.forEach(function(image) {
+            /* Wait for the image to load */
+            image.addEventListener("load", function(e) {
+                /* If image width is larger than window width */
+                cur_width = Math.min(e.target.naturalWidth, window_width) / scale;
+                /* Set image width to min(cur_width, max_width) */
+                e.target.setAttribute("width", Math.min(cur_width, max_width));
+            }, false);
+
+            /* Collapsed images */
             if (image.className != "resizeable") {
                 var parent = image.parentNode;
                 parent.innerHTML = "<img src='" + parent.href + "' border='0'>";
                 image = parent.firstElementChild;
             }
-
-            /* If image width is larger than window width */
-            cur_width = Math.min(image.naturalWidth, window.innerWidth) / scale;
-
-            /* Set image width to min(cur_width, max_width) */
-            image.setAttribute("width", Math.min(cur_width, max_width));
         });
     }
 
