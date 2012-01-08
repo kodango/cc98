@@ -2,7 +2,7 @@
 // @id                auto_show_image@cc98.org 
 // @name              Auto show image in cc98
 // @namespace         http://www.cc98.org
-// @author            tuantuan <dangoakachan@gmail.com>
+// @author            tuantuan <dangoakachan@foxmail.com>
 // @version           2.0
 // @description       Auto show collapsed images in cc98.org
 // @include           http://www.cc98.org/dispbbs.asp*
