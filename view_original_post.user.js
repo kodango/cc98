@@ -30,15 +30,16 @@
     function process_content()
     {
         var text_area = document.getElementById("content");
-        var content = text_area.value;
+        var content = text_area.value.replace(/\s*\n*(\[quotex?\])\s*\n*/, "$1\n")
+            .replace(/\s*\n*(\[\/quotex?\])\s*\n*/, "\n\n$1\n"); // 删除过多的空行
 
         var ins_pos = content.indexOf("[/b]") + 4;
         var ins_content = "[url=" + get_orig_url(location.href) + ",t="+(open_in_new_tab?'blank':'self') 
-            +"][color=" + color + "]"+ prompt +"[/color][/url]";
+            +"][color=" + color + "][b]"+ prompt +"[/b][/color][/url]\n";
 
         text_area.value = content.substring(0, ins_pos) + ins_content + 
             content.substring(ins_pos).replace(/(\[em\d{2}\])/g, "[noubb]$1[/noubb]")  // 不解释 [em**] 标签
-            .replace(/(\[upload=[^,]*?)(,0)?(\])/g, "$1,1$3");  // 不自动展开图片
+            .replace(/(\[upload=[^,]*?)(,0)?(\])/g, "$1,1$3")  // 不自动展开图片
         
         text_area.setSelectionRange(text_area.selectionEnd-1, text_area.selectionEnd-1);
         text_area.focus();
