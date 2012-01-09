@@ -7,24 +7,31 @@
 
   <style type="text/css">
     body {
-      margin-top: 1.0em;
-      background-color: #b6699d;
+      margin: 1.0em auto;
+      background-color: #FFFFFF;
       font-family: Helvetica, Arial, FreeSans, san-serif;
       color: #000000;
     }
     #container {
-      margin: 0 auto;
-      width: 700px;
+      width: 750px;
+      padding: 0 20px;
+      margin-left: 5em;
+      border: 1px solid #EFEFEF;
+      -webkit-box-shadow: 0 3px 6px rgba(0,0,0,.25);
+      -moz-box-shadow: 0 3px 6px rgba(0,0,0,.25);
+      z-index: 1000;
+      line-height: 1.6em;
     }
-    h1 { font-size: 3.8em; color: #499662; margin-bottom: 3px; }
-    h1 .small { font-size: 0.4em; }
+    #container p { margin: 0 auto; margin-bottom: 1em; }
+    h1 { font-size: 2.4em; color: #499662; margin-top: 10px 0; }
+    h1 .small { font-size: 0.5em; }
     h1 a { text-decoration: none }
     h2 { font-size: 1.5em; color: #499662; }
     h3 { text-align: center; color: #499662; }
     a { color: #499662; }
-    .description { font-size: 1.2em; margin-bottom: 30px; margin-top: 30px; font-style: italic;}
-    .download { float: right; }
-    pre { background: #000; color: #fff; padding: 15px;}
+    .description { font-size: 1em; }
+    .download { position: absolute; top: 1em; right: 100px; }
+    pre { background: #EEE; padding: 5px 15px; border: 1px solid #AAA; }
     hr { border: 0; width: 80%; border-bottom: 1px solid #aaa}
     .footer { text-align:center; padding-top:30px; font-style: italic; }
   </style>
@@ -34,7 +41,6 @@
   <a href="https://github.com/dangoakachan/cc98"><img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
 
   <div id="container">
-
     <div class="download">
       <a href="https://github.com/dangoakachan/cc98/zipball/master">
         <img border="0" width="90" src="https://github.com/images/modules/download/zip.png"></a>
@@ -46,40 +52,33 @@
       <span class="small">by <a href="https://github.com/dangoakachan">dangoakachan</a></span></h1>
 
     <div class="description">
-      UserScripts for CC98
+    <p>This repository contains some useful user scripts for cc98.org, which is a popular forum in Zhejiang University. All scripts support both Google Chrome and Mozilla Firefox with Scriptish or Greasemonkey installed.</p>
     </div>
-
-    
-
-    
-
-    
-
-    
-
-    
-      <h2>Authors</h2>
-      <p>tuantuan (dangoakachan@foxmail.com)<br/>      </p>
-    
-
-    
-      <h2>Contact</h2>
-      <p>tuantuan (dangoakachan@foxmail.com)<br/>      </p>
-    
+      <h2>Authors And Contact</h2>
+      <p>tuantuan <a href="mailto:dangoakachan@foxmail.com">&lt;dangoakachan@foxmail.com&gt;</a>, another..</p>
+      <p>If you need some help, please contact me with the email listed above or <a href="http://weibo.com/dangoakachan">follow me</a> in weibo.com</p>
 
     <h2>Download</h2>
-    <p>
-      You can download this project in either
-      <a href="https://github.com/dangoakachan/cc98/zipball/master">zip</a> or
-      <a href="https://github.com/dangoakachan/cc98/tarball/master">tar formats.
+    <p>You can download the code of this project in either <a href="https://github.com/dangoakachan/cc98/zipball/master">zip</a> or <a href="https://github.com/dangoakachan/cc98/tarball/master">tar formats</a>. You can also clone the project with <a href="http://git-scm.com">Git</a> by running: 
     </p>
-    <p>You can also clone the project with <a href="http://git-scm.com">Git</a>
-      by running:
       <pre>$ git clone git://github.com/dangoakachan/cc98</pre>
-    </p>
+
+    <h2>Install Steps </h2>
+    <p>If you are using Mozilla Firefox, you first need to install Greasemonkey or Scriptish extension. I'm now using Scriptish to develop this scripts, so the latter one is more recommended. Because Google Chrome natively supports Greasemonkey, you don't have to install an extra extension to use this scripts.</p>
+    <p>The installation of user scripts in both two browsers is very easy, just download the user script and drag it to the browser. A confirm window will pop up, make sure you want to install and click the install button. </p>
+
+    <h2>Develop Manuals</h2>
+    <p>If you want to learn how to develop a user script, there are some manuals listed below:</p>
+    <ol>
+        <li>W3schools: <a href="http://www.w3schools.com/js/">http://www.w3schools.com/js</a></li>
+        <li>Mozilla MDN: <a href="https://developer.mozilla.org/en/JavaScript/Reference">https://developer.mozilla.org/en/JavaScript/Reference</a></li>
+        <li>Greasemonkey Wiki: <a href="http://wiki.greasespot.net/Main_Page">http://wiki.greasespot.net/Main_Page</a></li>
+        <li>深入Greasemonkey: <a href="http://www.firefox.net.cn/dig/toc/">http://www.firefox.net.cn/dig/toc</a></li>
+        <li>善用谷歌搜索: <a href="http://www.google.com">http://www.google.com</a></li>
+    </ol>
 
     <div class="footer">
-      get the source code on GitHub : <a href="https://github.com/dangoakachan/cc98">dangoakachan/cc98</a>
+      Browse the source code on GitHub : <a href="https://github.com/dangoakachan/cc98">dangoakachan/cc98</a>
     </div>
 
   </div>
