@@ -88,6 +88,13 @@
         /* Iterate each images and show */
         images = Array.prototype.slice.call(images, 0);
         images.forEach(function(image) {
+            /* Collapsed images */
+            if (image.className != "resizeable") {
+                var parent = image.parentNode;
+                parent.innerHTML = "<img src='" + parent.href + "' border='0'>";
+                image = parent.firstElementChild;
+            }
+
             /* Wait for the image to load */
             image.addEventListener("load", function(e) {
                 /* If image width is larger than window width */
@@ -96,12 +103,6 @@
                 e.target.setAttribute("width", Math.min(cur_width, max_width));
             }, false);
 
-            /* Collapsed images */
-            if (image.className != "resizeable") {
-                var parent = image.parentNode;
-                parent.innerHTML = "<img src='" + parent.href + "' border='0'>";
-                image = parent.firstElementChild;
-            }
         });
     }
 
