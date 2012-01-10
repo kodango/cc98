@@ -10,7 +10,17 @@
 // ==/UserScript==
 
 (function() {
+    /* User Settings Start */
+    /* Timout for reloading */
     var timeout = 1000;
+
+    /* Status color for default, warning or error */
+    var default_color = "#000000";
+    var warn_color = "blue";
+    var error_color = "red";
+    /* User Settings End */
+
+    /* Make it empty here */
     var accounts = {};
 
     /*
@@ -49,7 +59,7 @@
 
         options = value || {};
         var result;
-        var decode = options.raw ? function (s) s : decodeURIComponent;
+        var decode = options.raw ? function (s) { return s; }: decodeURIComponent;
 
         return (result = new RegExp('(?:^|; )' + encodeURIComponent(key) +
             '=([^;]*)').exec(document.cookie)) ? decode(result[1]) : "";
@@ -63,25 +73,26 @@
     }
 
     /* Print the log to the console */
-    function logger(msg, is_err)
+    function logger(msg, color)
     {
-        if (is_err)
-            msg = "<font color='red'>" + msg + "</font>";
-
         var status = document.getElementById("status")
+
+        color = color || default_color;
+        msg = "<font color='" + color + "'>" + msg + "</font>";
         status.innerHTML = msg;
         status.style.display = "inline";
     }
 
     /* Add customized style like GM_addStyle */
-    var add_style = (typeof GM_addStyle != "undefined")?GM_addStyle:function(css) {
+    function add_style(css)
+    {
         var head = document.getElementsByTagName("head")[0];
         var style = document.createElement("style");
 
         style.setAttribute("type", "text/css");
         style.innerHTML = css;
         head.appendChild(style);
-    };
+    }
 
     /* Simulate GM_getValue and GM_setValue functions */
     function get_value(key, def) { return localStorage.getItem(key) || def; }
@@ -100,11 +111,7 @@
     }
 
     /* Reload cur pages when timeout */
-    function reload(flag)
-    {
-        if (flag)
-            setTimeout(location.reload, timeout);
-    }
+    function reload() { setTimeout("location.reload()", timeout); }
 
     /* Check if the user has logged in */
     function is_login(username)
@@ -143,28 +150,26 @@
 
         xhr_post("http://www.cc98.org/sign.asp", data, function(e) {
             var req = e.target || this;
-            var flag = false;
 
             switch (req.responseText) {
                 case "9898":
                     logger("The user '" + username + "' log in successfully.");
-                    flag = true;
                     break;
                 case "1003":
-                    logger("The password of user '" + username + "' is wrong.", true);
+                    logger("The password of user '" + username + "' is wrong.", error_color);
                     break;
                 case "1002":
-                    logger("The user '" + username + "' has been locked.", true);
+                    logger("The user '" + username + "' has been locked.", error_color);
                     break;
                 case "1001":
-                    logger("The user '" + username + "' doesn't exist.", true);
+                    logger("The user '" + username + "' doesn't exist.", error_color);
                     break;
                 default:
-                    logger("Unknown problem occurred.", true);
+                    logger("Unknown problem occurred.", error_color);
                     break;
             }
 
-            reload(flag);
+            reload();
         });
     }
 
@@ -194,8 +199,10 @@
             logger("The user '" + username + "' has been added.");
 
             return true;
-        } else
+        } else {
+            logger("You must input no empty username and password.", warn_color);
             return false;
+        }
     }
 
     /* Delete a old account */
@@ -203,14 +210,21 @@
     {
         var username = prompt("Username: ");
 
-        if (username) {
+        if (!username) {
+            logger("You must input no empty username.", warn_color);
+            return false;
+        }
+
+        if (username in accounts) {
             delete accounts[username];
             set_value("cc98_accounts", JSON.stringify(accounts));
             logger("The user '" + username + "' has been deleted.");
 
             return true;
-        } else
+        } else {
+            logger("The user '" + username + "' doesn't exist.", warn_color);
             return false;
+        }
     }
 
     /* Clear all accounts */
@@ -226,27 +240,41 @@
     {
         var im_accounts = prompt("Import accounts, like {\"u1\":\"p1\", \"u2\":\"p2\"}: ");
         var users = [];
+        var ret = true;
 
         if (im_accounts) {
-            im_accounts = JSON.parse(im_accounts);
+            try {
+                im_accounts = JSON.parse(im_accounts);
 
-            for (var user in im_accounts) {
-                accounts[user] = im_accounts[user];
-                users.push(user);
+                for (var user in im_accounts) {
+                    accounts[user] = im_accounts[user];
+                    users.push(user);
+                }
+
+                set_value("cc98_accounts", JSON.stringify(accounts));
+                logger(users.join(", ") + " have been imported.");
+            } catch (err) {
+                logger(err, error_color);
+                ret = false;
             }
+        } else {
+            logger("You must input no empty accounts.", warn_color);
+            ret = false;
+        }
 
-            set_value("cc98_accounts", JSON.stringify(accounts));
-            logger(users.join(", ") + " have been imported.");
-
-            return true;
-        } else
-            return false;
+        return ret;
     }
 
     /* Export accounts */
     function export_accounts()
     {
-        logger(get_value("cc98_accounts"));
+        var ex_accouts = get_value("cc98_accounts");
+
+        if (ex_accouts)
+            logger(ex_accouts);
+        else
+            logger("No account has been found.", warn_color);
+
         return false;
     }
 
@@ -260,7 +288,7 @@
         pos.appendChild(multi_login);
 
         /* Add status notification box */
-        var status = document.createElement("span");
+        var status = document.createElement("pre");
         status.id = "status";
         multi_login.appendChild(status);
 
@@ -296,17 +324,20 @@
             /* If val is an account username */
             if (val in accounts)
                 login(val, accounts[val], true);
-            else  /* Otherwise, val is an action name */
-                reload(eval(val+"()"));
+            else { /* Otherwise, val is an action name */
+                var ret = eval(val)();
+
+                if (ret) reload();
+                else e.target.selectedIndex = 0;
+            }
         }, false);
 
         /* Add customized style for select menu */
         add_style("\
             #status {\
-                width: 100px;\
-                margin-right: 10px;\
-                z-index: 1000;\
-                padding: 1px;\
+                font-size: 11px;\
+                width: 50px;\
+                margin-right: 5px;\
                 display: none;\
             }\
             #multi_login {\
@@ -317,8 +348,8 @@
                 right: 0px;\
             }\
             #multi_select{\
-                font-size: 10px;\
-                padding: 0px 2px 1px 2px;\
+                font-size: 11px;\
+                padding-bottom: 1px;\
                 height: 16px;\
             }\
         ");
