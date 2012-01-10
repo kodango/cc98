@@ -5,7 +5,16 @@
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @description    Switch your login account of CC98 quickly.
-// @include        http://www.cc98.org/*
+// @include        http://www.cc98.org/index.asp
+// @include        http://www.cc98.org/list.asp*
+// @include        http://www.cc98.org/dispbbs.asp*
+// @include        http://www.cc98.org/reannounce.asp*
+// @include        http://www.cc98.org/editannounce.asp*
+// @include        http://10.10.98.98/index.asp
+// @include        http://10.10.98.98/list.asp*
+// @include        http://10.10.98.98/dispbbs.asp*
+// @include        http://10.10.98.98/reannounce.asp*
+// @include        http://10.10.98.98/editannounce.asp*
 // @run-at         document-end
 // ==/UserScript==
 
@@ -22,6 +31,8 @@
 
     /* Make it empty here */
     var accounts = {};
+    /* Set the status logger position */
+    var status_where = "switch_status";
 
     /*
      * Create a cookie with the given key and value and other optional parameters.
@@ -75,7 +86,7 @@
     /* Print the log to the console */
     function logger(msg, color)
     {
-        var status = document.getElementById("status")
+        var status = document.getElementById(status_where)
 
         color = color || default_color;
         msg = "<font color='" + color + "'>" + msg + "</font>";
@@ -111,7 +122,11 @@
     }
 
     /* Reload cur pages when timeout */
-    function reload() { setTimeout("location.reload()", timeout); }
+    function reload(flag) 
+    { 
+        if (!flag) return;
+        else setTimeout("location.reload()", timeout); 
+    }
 
     /* Check if the user has logged in */
     function is_login(username)
@@ -130,7 +145,7 @@
     }
 
     /* Log in cc98 with specified user account */
-    function login(username, passwd)
+    function login(username, passwd, reload_flag)
     {
         /* Check if the user has logged in */
         if (is_login(username)) {
@@ -169,7 +184,7 @@
                     break;
             }
 
-            reload();
+            reload(reload_flag);
         });
     }
 
@@ -278,8 +293,8 @@
         return false;
     }
 
-    /* C-like main entry */
-    function main() 
+    /* Add multi switch menu */
+    function add_multi_switcher()
     {
         /* Get the add position */
         var pos = xpath("//td[@class='TopLighNav1']/div").snapshotItem(0);
@@ -289,7 +304,7 @@
 
         /* Add status notification box */
         var status = document.createElement("pre");
-        status.id = "status";
+        status.id = "switch_status";
         multi_login.appendChild(status);
 
         /* Add select box */
@@ -321,20 +336,93 @@
         select_menu.addEventListener("change", function(e) {
             var val = e.target.value;
 
+            /* Change status logger position */
+            status_where = "switch_status";
+
             /* If val is an account username */
             if (val in accounts)
                 login(val, accounts[val], true);
             else { /* Otherwise, val is an action name */
                 var ret = eval(val)();
 
-                if (ret) reload();
+                if (ret) reload(true);
                 else e.target.selectedIndex = 0;
             }
         }, false);
 
+    }
+
+    function add_post_as()
+    {
+        /* We will get submit button here */
+        var submit_btn = xpath("//td[@class='tablebody2']//input[@type='submit']")
+            .snapshotItem(0);
+
+        /* Add status notification box */
+        var status = document.createElement("pre");
+        status.id = "postas_status";
+        submit_btn.parentNode.insertBefore(status, submit_btn);
+
+        /* Create post as menu */
+        var postas_menu = document.createElement("select");
+        submit_btn.parentNode.insertBefore(postas_menu, submit_btn);
+
+        /* Add User List label */
+        var option = new Option("Post as", "", true)
+        option.disabled = "disabled";
+        postas_menu.add(option);
+
+        /* Add accounts to post as menu */
+        postas_menu.id = "post_as";
+
+        for (var user in accounts)
+            postas_menu.add(new Option(user, user));
+
+        /* Bind change event to select menu */
+        postas_menu.addEventListener("change", function(e) {
+            /* Get account username and password */
+            var val = e.target.value;
+            var passwd = accounts[val];
+
+            /* Change status logger position */
+            status_where = "postas_status";
+
+            /* Log in selected user */
+            login(val, passwd, true);
+
+            /* Spool form input field */
+            //var form = submit_btn.form;
+
+            //var username_field = document.getElementsByName("UserName");
+            //username_field = (username_field.length > 0)?username_field[0]:document.getElementsByName("username")[0];
+
+            //var passwd_field = document.getElementsByName("passwd")[0];
+
+            //username_field.value = val;
+            //passwd_field.value = md5(passwd).slice(8, 24);
+
+            //[> Submit the from, means post the reply <]
+            //form.submit();
+        }, false);
+    }
+
+    /* C-like main entry */
+    function main() 
+    {
+        /* Disable the script in frame window */
+        if (window.top != window.self)
+            return;
+
+        /* Add multi switch menu */
+        add_multi_switcher();
+
+        /* Add post as menu when reply */
+        if (is_login() && (location.href.match(/reannounce|dispbbs/) != null))
+            add_post_as();
+
         /* Add customized style for select menu */
         add_style("\
-            #status {\
+            #switch_status, #postas_status {\
                 font-size: 11px;\
                 width: 50px;\
                 margin-right: 5px;\
@@ -347,10 +435,15 @@
                 top: 0px;\
                 right: 0px;\
             }\
-            #multi_select{\
+            #multi_select {\
                 font-size: 11px;\
                 padding-bottom: 1px;\
                 height: 16px;\
+            }\
+            #post_as {\
+                font-size: 11px;\
+                margin-right: 10px;\
+                height: 20px;\
             }\
         ");
     }
