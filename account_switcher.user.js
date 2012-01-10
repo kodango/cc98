@@ -215,7 +215,7 @@
 
             return true;
         } else {
-            logger("You must input no empty username and password.", warn_color);
+            logger("You must give a username and password.", warn_color);
             return false;
         }
     }
@@ -226,7 +226,7 @@
         var username = prompt("Username: ");
 
         if (!username) {
-            logger("You must input no empty username.", warn_color);
+            logger("You must give a username.", warn_color);
             return false;
         }
 
@@ -273,7 +273,7 @@
                 ret = false;
             }
         } else {
-            logger("You must input no empty accounts.", warn_color);
+            logger("You must give a json-like accounts string.", warn_color);
             ret = false;
         }
 
