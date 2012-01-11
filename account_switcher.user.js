@@ -116,8 +116,10 @@
         var req = new XMLHttpRequest();
 
         req.open("POST", url, true);
+
         req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
         req.onload = callback;
+
         req.send(data);
     }
 
@@ -389,20 +391,6 @@
 
             /* Log in selected user */
             login(val, passwd, true);
-
-            /* Spool form input field */
-            //var form = submit_btn.form;
-
-            //var username_field = document.getElementsByName("UserName");
-            //username_field = (username_field.length > 0)?username_field[0]:document.getElementsByName("username")[0];
-
-            //var passwd_field = document.getElementsByName("passwd")[0];
-
-            //username_field.value = val;
-            //passwd_field.value = md5(passwd).slice(8, 24);
-
-            //[> Submit the from, means post the reply <]
-            //form.submit();
         }, false);
     }
 
