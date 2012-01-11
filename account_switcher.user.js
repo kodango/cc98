@@ -113,13 +113,20 @@
     /* Do ajax post request */
     function xhr_post(url, data, callback)
     {
+        /* Create a request object */
         var req = new XMLHttpRequest();
 
         req.open("POST", url, true);
-
         req.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        req.onload = callback;
 
+        /* If callback is a function, bind it to onload event */
+        if (typeof callback == "function")
+            req.onload = callback;
+        else /* Otherwise, callback is a event object as {"event": "callback"} */
+            for (var attr in callback)
+                req[attr] = callback[attr];
+
+        /* Send the post data */
         req.send(data);
     }
 
