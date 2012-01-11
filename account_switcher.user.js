@@ -122,9 +122,11 @@
         /* If callback is a function, bind it to onload event */
         if (typeof callback == "function")
             req.onload = callback;
-        else /* Otherwise, callback is a event object as {"event": "callback"} */
+        else if (typeof callback == "object") {
+            /* Otherwise, callback is a event object as {"event": "callback"} */
             for (var attr in callback)
                 req[attr] = callback[attr];
+        }
 
         /* Send the post data */
         req.send(data);
