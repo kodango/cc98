@@ -1,4 +1,5 @@
 // ==UserScript==
+// @id            view_original_post
 // @name          View Original Post In CC98
 // @namespace     http://www.cc98.org
 // @author        tuantuan <dangoakachan@foxmail.com>

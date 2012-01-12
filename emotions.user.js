@@ -1,4 +1,5 @@
 // ==UserScript==
+// @id             cc98_emotions
 // @name           CC98 Emotions
 // @namespace      cc98_emotions@cc98.org
 // @description    add emotions for fast reply and some more enhancement

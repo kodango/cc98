@@ -1,5 +1,5 @@
 // ==UserScript==
-// @id                auto_show_image@cc98.org 
+// @id                auto_show_image
 // @name              Auto show image in cc98
 // @namespace         http://www.cc98.org
 // @author            tuantuan <dangoakachan@foxmail.com>
