@@ -9,9 +9,9 @@ Todo list:
 3. another..
 
 Script list:
-account_switcher: Switch your login account of CC98 quickly.
-atUser:	Support @user when post a reply
-cc98_emotions: add emotions for fast reply and some more enhancement
-auto_show_image: Auto show collapsed images in cc98.org
-sajax_reply: Use ajax to avoid redirection after replying
-view_original_post:	Add view original post link in the reply.
+Account switcher: Switch your login account of CC98 quickly.
+At user: Support @user when post a reply
+CC98 emotions: Add emotions for fast reply and some more enhancement
+Auto show image: Auto show collapsed images in cc98.org
+Simple ajax reply: Use ajax to avoid redirection after replying
+View original post: Add view original post link in the reply.

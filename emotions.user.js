@@ -1,8 +1,8 @@
 // ==UserScript==
 // @id             cc98_emotions
-// @name           CC98 Emotions
-// @namespace      cc98_emotions@cc98.org
-// @description    add emotions for fast reply and some more enhancement
+// @name           CC98 emotions
+// @namespace      http://www.cc98.org
+// @description    Add emotions for fast reply and some more enhancement
 // @author         tuantuan <dangoakachan@gmail.com>
 // @include        http://www.cc98.org/dispbbs.asp*
 // @include        http://www.cc98.org/reannounce.asp*

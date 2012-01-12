@@ -1,8 +1,8 @@
 // ==UserScript==
-// @id             atUser
+// @id             at_user
 // @name           At user
 // @version        1.0
-// @namespace      www.cc98.org
+// @namespace      http://www.cc98.org
 // @author         dango
 // @description    Support @user when post a reply
 // @include        http://www.cc98.org/dispbbs.asp*

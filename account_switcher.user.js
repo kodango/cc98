@@ -1,6 +1,6 @@
 // ==UserScript==
 // @id             account_switcher
-// @name           Account switcher for cc98
+// @name           Account switcher
 // @version        2.0
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
