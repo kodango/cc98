@@ -4,7 +4,7 @@
 // @version        1.0
 // @namespace      www.cc98.org
 // @author         dango
-// @description    Support @user  when post a reply
+// @description    Support @user when post a reply
 // @include        http://www.cc98.org/dispbbs.asp*
 // @include        http://10.10.98.98/dispbbs.asp*
 // @include        http://www.cc98.org/reannounce.asp*

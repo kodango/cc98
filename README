@@ -4,6 +4,14 @@ Project homepage: http://dangoakachan.github.com/cc98
 Support both Google Chrome and Firefox (with greasemonkey or scriptish installed)
 
 Todo list:
-1. Re-write account switcher script
+1. Re-write account switcher script (done)
 2. Re-write at user script
 3. another..
+
+Script list:
+account_switcher: Switch your login account of CC98 quickly.
+atUser:	Support @user when post a reply
+cc98_emotions: add emotions for fast reply and some more enhancement
+auto_show_image: Auto show collapsed images in cc98.org
+sajax_reply: Use ajax to avoid redirection after replying
+view_original_post:	Add view original post link in the reply.
