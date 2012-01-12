@@ -25,7 +25,7 @@
     var status_where = "reply_status";
 
     /* Post response string */
-    var POST_SUCESS = "本页面将在3秒后自动返回"; 
+    var POST_SUCCESS = "本页面将在3秒后自动返回"; 
     var POST_TENSEC = "本论坛限制发贴距离时间为10秒";
     var POST_EMPTY = "没有填写内容";
 
@@ -101,7 +101,7 @@
     /* Get the url of last reply */
     function get_last_reply_url(url)
     {
-        return get_orig_url(url).replace(/(star=)\d*/, "$1" + star).replace(/(#\d*)?$/, "#bottom");
+        return get_orig_url(url).replace(/(star=)\d*/, "$1" + star).replace(/#.*/, "#bottom");
     }
 
     /* Do ajax post with the form */
@@ -174,11 +174,16 @@
         var response = req.responseText;
 
         /* If reply success fully */
-        if (response.indexOf(POST_SUCESS) != -1) {
+        if (response.indexOf(POST_SUCCESS) != -1) {
             logger("回复帖子成功，将会在" + reload_timeout + "秒后自动刷新");
             setTimeout(function() {
-                location.href = goto_last?get_last_reply_url(location.href)
+                var url = goto_last?get_last_reply_url(location.href)
                     :get_orig_url(location.href);
+
+                if (url == location.href)
+                    location.reload();
+                else
+                    location.href = url;
             }, reload_timeout);
             return;
         }
@@ -246,6 +251,9 @@
                 display: none;\
             }\
         ");
+
+        /* Enable the submit button when reloading */
+        submit_btn.disabled = false;
 
         /* Bind click event to submit button */
         submit_btn.addEventListener("click", function(e) {
