@@ -1,20 +1,12 @@
 // ==UserScript==
 // @id             account_switcher
 // @name           Account switcher
-// @version        2.0
+// @version        2.1
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @description    Switch your login account of CC98 quickly.
-// @include        http://www.cc98.org/index.asp
-// @include        http://www.cc98.org/list.asp*
-// @include        http://www.cc98.org/dispbbs.asp*
-// @include        http://www.cc98.org/reannounce.asp*
-// @include        http://www.cc98.org/editannounce.asp*
-// @include        http://10.10.98.98/index.asp
-// @include        http://10.10.98.98/list.asp*
-// @include        http://10.10.98.98/dispbbs.asp*
-// @include        http://10.10.98.98/reannounce.asp*
-// @include        http://10.10.98.98/editannounce.asp*
+// @include        http://www.cc98.org/*
+// @include        http://10.10.98.98/*
 // @run-at         document-end
 // ==/UserScript==
 
@@ -24,9 +16,19 @@
     var timeout = 1000;
 
     /* Status color for default, warning or error */
-    var default_color = "#000000";
+    var default_color = "black";
     var warn_color = "blue";
     var error_color = "red";
+
+    /* Bookmarks */
+    var bookmarks = {
+        //"隐身": "cookies.asp?action=hidden",
+        //"上线": "cookies.asp?action=online",
+        //"注销": "logout.asp",
+        "修改个人资料": "modifyinfo.asp",
+        "我的主题列表": "mytopic.asp",
+        "十大热门主题": "hottopic.asp",
+    };
     /* User Settings End */
 
     /* Make it empty here */
@@ -80,7 +82,7 @@
     function xpath(path)
     {
         return document.evaluate(
-            path, document, null, XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+            path, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
     }
 
     /* Print the log to the console */
@@ -160,7 +162,7 @@
     {
         /* Check if the user has logged in */
         if (is_login(username)) {
-            logger("The user '" + username + "' has been logged in already.");
+            logger("用户'" + username + "'已经登录.");
             return;
         }
 
@@ -179,19 +181,19 @@
 
             switch (req.responseText) {
                 case "9898":
-                    logger("The user '" + username + "' log in successfully.");
+                    logger("用户'" + username + "'登录成功.");
                     break;
                 case "1003":
-                    logger("The password of user '" + username + "' is wrong.", error_color);
+                    logger("用户'" + username + "'密码错误.", error_color);
                     break;
                 case "1002":
-                    logger("The user '" + username + "' has been locked.", error_color);
+                    logger("用户'" + username + "'已经被锁定.", warn_color);
                     break;
                 case "1001":
-                    logger("The user '" + username + "' doesn't exist.", error_color);
+                    logger("用户'" + username + "'不存在.", error_color);
                     break;
                 default:
-                    logger("Unknown problem occurred.", error_color);
+                    logger("遇到未知的错误.", error_color);
                     break;
             }
 
@@ -213,102 +215,104 @@
         }
     }
 
-    /* Add a new account */
-    function add_user()
-    {
-        var username = prompt("Username: ");
-        var passwd = prompt("Password: ");
+    /* Actions object */
+    var actions = {
+        /* Add a new account */
+        add_user: function() {
+            var username = prompt("Username: ");
+            var passwd = prompt("Password: ");
 
-        if (username && passwd) {
-            accounts[username] = passwd;
-            set_value("cc98_accounts", JSON.stringify(accounts));
-            logger("The user '" + username + "' has been added.");
-
-            return true;
-        } else {
-            logger("You must give a username and password.", warn_color);
-            return false;
-        }
-    }
-
-    /* Delete a old account */
-    function del_user()
-    {
-        var username = prompt("Username: ");
-
-        if (!username) {
-            logger("You must give a username.", warn_color);
-            return false;
-        }
-
-        if (username in accounts) {
-            delete accounts[username];
-            set_value("cc98_accounts", JSON.stringify(accounts));
-            logger("The user '" + username + "' has been deleted.");
-
-            return true;
-        } else {
-            logger("The user '" + username + "' doesn't exist.", warn_color);
-            return false;
-        }
-    }
-
-    /* Clear all accounts */
-    function clear_users()
-    {
-        del_value("cc98_accounts");
-        logger("All users has been cleared.");
-        return true;
-    }
-
-    /* Import accounts */
-    function import_accounts()
-    {
-        var im_accounts = prompt("Import accounts, like {\"u1\":\"p1\", \"u2\":\"p2\"}: ");
-        var users = [];
-        var ret = true;
-
-        if (im_accounts) {
-            try {
-                im_accounts = JSON.parse(im_accounts);
-
-                for (var user in im_accounts) {
-                    accounts[user] = im_accounts[user];
-                    users.push(user);
-                }
-
+            if (username && passwd) {
+                accounts[username] = passwd;
                 set_value("cc98_accounts", JSON.stringify(accounts));
-                logger(users.join(", ") + " have been imported.");
-            } catch (err) {
-                logger(err, error_color);
+                logger("用户'" + username + "已经添加到马甲列表.");
+
+                return true;
+            } else {
+                logger("添加用户必须同时指定用户名和密码", warn_color);
+                return false;
+            }
+        },
+
+        /* Delete a old account */
+        del_user: function() {
+            var username = prompt("Username: ");
+
+            if (!username) {
+                logger("删除用户必须指定用户名", warn_color);
+                return false;
+            }
+
+            if (username in accounts) {
+                delete accounts[username];
+                set_value("cc98_accounts", JSON.stringify(accounts));
+                logger("用户'" + username + "已经从马甲列表中删除.");
+
+                return true;
+            } else {
+                logger("用户'" + username + "不存在马甲列表中.", warn_color);
+                return false;
+            }
+        },
+
+        /* Clear all accounts */
+        clear_users: function() {
+            del_value("cc98_accounts");
+            logger("马甲列表已经清空.");
+            return true;
+        },
+
+        /* Import accounts */
+        import_accounts: function() {
+            var im_accounts = prompt("Import accounts, like {\"u1\":\"p1\", \"u2\":\"p2\"}: ");
+            var users = [];
+            var ret = true;
+
+            if (im_accounts) {
+                try {
+                    im_accounts = JSON.parse(im_accounts);
+
+                    for (var user in im_accounts) {
+                        accounts[user] = im_accounts[user];
+                        users.push(user);
+                    }
+
+                    set_value("cc98_accounts", JSON.stringify(accounts));
+                    logger("用户'" + users.join(", ") + "成功导入到马甲列表中.");
+                } catch (err) {
+                    logger(err, error_color);
+                    ret = false;
+                }
+            } else {
+                logger("必须以JSON的形式提供导入的账号,请参考导出格式.", warn_color);
                 ret = false;
             }
-        } else {
-            logger("You must give a json-like accounts string.", warn_color);
-            ret = false;
-        }
 
-        return ret;
-    }
+            return ret;
+        },
 
-    /* Export accounts */
-    function export_accounts()
-    {
-        var ex_accouts = get_value("cc98_accounts");
+        /* Export accounts */
+        export_accounts: function() {
+            var ex_accouts = get_value("cc98_accounts");
 
-        if (ex_accouts)
-            logger(ex_accouts);
-        else
-            logger("No account has been found.", warn_color);
+            if (ex_accouts)
+                logger(ex_accouts);
+            else
+                logger("马甲列表为空.", warn_color);
 
-        return false;
-    }
+            return false;
+        },
+    };
 
     /* Add multi switch menu */
     function add_multi_switcher()
     {
         /* Get the add position */
-        var pos = xpath("//td[@class='TopLighNav1']/div").snapshotItem(0);
+        var pos = xpath("//td[@class='TopLighNav1']/div").singleNodeValue;
+
+        if (pos == null)
+            return;
+
         var multi_login = document.createElement("div");
         multi_login.id = "multi_login";
         pos.appendChild(multi_login);
@@ -324,7 +328,7 @@
         multi_login.appendChild(select_menu);
 
         /* Add accounts to select menu */
-        var option = new Option("User List", "", true)
+        var option = new Option("用户列表", "", true)
         option.disabled = "disabled";
         select_menu.add(option);
 
@@ -333,15 +337,23 @@
             select_menu.add(new Option(user, user));
 
         /* Add actions to select menu */
-        var option = new Option("Action List", "")
+        option = new Option("操作列表", "")
         option.disabled = "disabled";
         select_menu.add(option);
 
-        select_menu.add(new Option("Add user", "add_user"));
-        select_menu.add(new Option("Del user", "del_user"));
-        select_menu.add(new Option("Clear users", "clear_users"));
-        select_menu.add(new Option("Import", "import_accounts"));
-        select_menu.add(new Option("Export", "export_accounts"));
+        select_menu.add(new Option("添加", "add_user"));
+        select_menu.add(new Option("删除", "del_user"));
+        select_menu.add(new Option("清空", "clear_users"));
+        select_menu.add(new Option("导入", "import_accounts"));
+        select_menu.add(new Option("导出", "export_accounts"));
+
+        /* Add bookmarks to select menu */
+        option = new Option("书签列表", "");
+        option.disabled = "disabled";
+        select_menu.add(option);
+
+        for (var name in bookmarks)
+            select_menu.add(new Option(name, bookmarks[name]));
 
         /* Bind change event to select menu */
         select_menu.addEventListener("change", function(e) {
@@ -350,24 +362,26 @@
             /* Change status logger position */
             status_where = "switch_status";
 
-            /* If val is an account username */
-            if (val in accounts)
+            if (val in accounts) /* If val is an account username */
                 login(val, accounts[val], true);
-            else { /* Otherwise, val is an action name */
-                var ret = eval(val)();
+            else if (val in actions) {  /* If val is an action name */
+                var ret = actions[val]();
 
                 if (ret) reload(true);
                 else e.target.selectedIndex = 0;
-            }
+            } else  /* Otherwise, val is a bookmark url */
+                location.href = val;
         }, false);
-
     }
 
     function add_post_as()
     {
         /* We will get submit button here */
         var submit_btn = xpath("//td[@class='tablebody2']//input[@type='submit']")
-            .snapshotItem(0);
+            .singleNodevalue;
+
+        if (submit_btn == null)
+            return;
 
         /* Add status notification box */
         var status = document.createElement("pre");
@@ -379,7 +393,7 @@
         submit_btn.parentNode.insertBefore(postas_menu, submit_btn);
 
         /* Add User List label */
-        var option = new Option("Post as", "", true)
+        var option = new Option("切换用户为", "", true)
         option.disabled = "disabled";
         postas_menu.add(option);
 
@@ -410,17 +424,10 @@
         if (window.top != window.self)
             return;
 
-        /* Add multi switch menu */
-        add_multi_switcher();
-
-        /* Add post as menu when reply */
-        if (is_login() && (location.href.match(/reannounce|dispbbs/) != null))
-            add_post_as();
-
         /* Add customized style for select menu */
         add_style("\
             #switch_status, #postas_status {\
-                font-size: 11px;\
+                font-size: 12px;\
                 width: 50px;\
                 margin-right: 5px;\
                 display: none;\
@@ -433,16 +440,23 @@
                 right: 0px;\
             }\
             #multi_select {\
-                font-size: 11px;\
+                font-size: 12px;\
                 padding-bottom: 1px;\
                 height: 16px;\
             }\
             #post_as {\
-                font-size: 11px;\
+                font-size: 12px;\
                 margin-right: 10px;\
                 height: 20px;\
             }\
         ");
+
+        /* Add multi switch menu */
+        add_multi_switcher();
+
+        /* Add post as menu when reply */
+        if (is_login() && (location.href.match(/reannounce|dispbbs/) != null))
+            add_post_as();
     }
 
     main();
