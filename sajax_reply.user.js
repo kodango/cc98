@@ -18,7 +18,7 @@
     /* User Setting */
     var auto_reply = true;
     var reload_timeout = 0;
-    var goto_last = true;
+    var goto_last = false;
     /* User Setting End */
 
     /* Set the status logger position */
