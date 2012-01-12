@@ -166,7 +166,8 @@
             emot_html.push("<div id='" + category_id + "'>"); 
 
             var opt = new Option(category_desc, category_id);
-            emot_category.options[emot_category.options.length] = opt;
+            //emot_category.options[emot_category.options.length] = opt;
+            emot_category.add(opt);
 
             selected = selected || false;
             opt.selected = selected;
