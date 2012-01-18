@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             sajax_reply
 // @name           Simple ajax reply
-// @version        0.1
+// @version        0.2
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @description    Use ajax to avoid redirection after replying
@@ -16,9 +16,15 @@
 
 (function() {
     /* User Setting */
-    var auto_reply = true;
-    var reload_timeout = 0;
-    var goto_last = false;
+
+    var auto_reply = true;        /* Auto reply when ten-sec ocurrs */
+    var goto_last = false;        /* Go to last page when reply successfully */
+    var reload_timeout = 0;       /* Reload timeout after reply */
+    var default_color = "black";  /* Default status log color */
+    var warn_color = "blue";      /* Warn status log color */
+    var error_color = "red";      /* Error status log color */
+    var font_size = "11px";       /* Font size of status log */
+
     /* User Setting End */
 
     /* Set the status logger position */
@@ -28,11 +34,6 @@
     var POST_SUCCESS = "本页面将在3秒后自动返回"; 
     var POST_TENSEC = "本论坛限制发贴距离时间为10秒";
     var POST_EMPTY = "没有填写内容";
-
-    /* Status log color */
-    var default_color = "black";
-    var warn_color = "blue";
-    var error_color = "red";
 
     /* Express the last page with a very large number */
     var star = 32767;
@@ -101,7 +102,8 @@
     /* Get the url of last reply */
     function get_last_reply_url(url)
     {
-        return get_orig_url(url).replace(/(star=)\d*/, "$1" + star).replace(/#.*/, "#bottom");
+        return get_orig_url(url).replace(/(star=)\d*/, "$1" + star)
+            .replace(/#.*/, "#bottom");
     }
 
     /* Do ajax post with the form */
@@ -177,14 +179,19 @@
         if (response.indexOf(POST_SUCCESS) != -1) {
             logger("回复帖子成功，将会在" + reload_timeout + "秒后自动刷新");
             setTimeout(function() {
-                var url = goto_last?get_last_reply_url(location.href)
-                    :get_orig_url(location.href);
+                var url = location.href;
+
+                if (url.indexOf("dispbbs") != -1) { /* If fast reply */
+                    url = get_last_reply_url(url);
+                } else  /* Otherwise, quote reply */
+                    url = goto_last?get_last_reply_url(url):get_orig_url(url);
 
                 if (url == location.href)
                     location.reload();
                 else
                     location.href = url;
             }, reload_timeout);
+
             return;
         }
 
@@ -205,14 +212,12 @@
         if (error_text.indexOf(POST_TENSEC) != -1) {
             /* Save submit button value */
             var val = submit_btn.value;
-            submit_btn.value = val + "[" + 10 + "秒]";
+            submit_btn.value = val + "[剩余" + 10 + "秒]";
 
             /* Update the countdown time */
             for (var i = 9; i >= 1; i--) {
                 setTimeout((function(i) {
-                    return function() { 
-                        submit_btn.value = val + "[" + i + "秒]";
-                    }
+                    return function() { submit_btn.value = val + "[剩余" + i + "秒]"; }
                 })(i), (10 - i) * 1000);
             }
 
@@ -245,12 +250,12 @@
         /* Add customized style for select menu */
         add_style("\
             #reply_status {\
-                font-size: 11px;\
+                font-size: %(font_size)%;\
                 width: 50px;\
                 margin-right: 5px;\
                 display: none;\
             }\
-        ");
+        ".replace("%(font_size)%", font_size));
 
         /* Enable the submit button when reloading */
         submit_btn.disabled = false;
