@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.3
+// @version        0.4
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -19,11 +19,12 @@ var showTitle = false;            // 回复框是否显示标题
 var transparent = 1;              // 回复框透明度
 var backgroundColor = '#F4F9FB';  // 回复框背景色
 var replyPopupWidth = '56%';      // 回复框宽度
-var textInputHeight = '240px';    // 文本框高度
+var textInputHeight = '100px';    // 文本框高度
 var animateSpeed = 'slow';        // 动画速度
 var openInNewtab = false;         // 链接是否在新标签页打开
-var color = "green";              // 颜色
-var prompt = "|查看原帖|";        // 链接提示文字，如果type为2则该选项无效
+var promptColor = "green";        // 查看原帖提示颜色
+var promptString = "|查看原帖|";  // 查看提示文字
+var removeMulitQuote = true;      // 删除多重引用的内容(仅保留最后一重)
 
 /* 用户设置结束 */
 
@@ -138,14 +139,15 @@ function addCustomizedCSS()
         .btn_upload, .btn_expression, .btn_emotion { margin: 0 3px; }\
         #reply_panel_container { margin: 0 5px; }\
         .panel img { margin-right: 5px; }\
+        .panel .label { margin-right: 5px; float: left; }\
         #reply_content_container {\
             position: relative;\
             margin: 10px 5px 5px;\
         }\
         #reply_content {\
             width: 100%;\
-            padding: 0.6em 0.8em;\
-            line-height: 1.5em;\
+            padding: 0.4em 0.6em;\
+            line-height: 1.2em;\
             border: 1px solid #ccc;\
             background-color: #fefefe;\
         }\
@@ -224,11 +226,11 @@ function createReplyButtons()
     $('img[src$="message.gif"]').closest('td')  // 查找插入位置
         .append(function(index) {
             return [
-                '<a class="reply_button btn_reply" title="快速回复" href="#">',  // 快速回复按钮
+                '<a class="reply_button btn_reply" title="快速回复">',  // 快速回复按钮
                 '<img alt="快速回复" src=""/>',
                 '</a>',
 
-                '<a class="reply_button btn_quote" title="快速引用" href="#">',  // 快速引用按钮
+                '<a class="reply_button btn_quote" title="快速引用">',  // 快速引用按钮
                 '<img alt="快速引用" src=""/>',
                 '</a>',
             ].join('');
@@ -252,26 +254,26 @@ function createReplyPopup()
 
     /* 填充回复框界面骨架 */
     $replyContainer.html([
-        '<div id="reply_header_container">',                                   // 回复框头部
+        '<div id="reply_header_container">',   // 回复框头部
 
-        '<div id="reply_titlebar">',                                           // 回复框标题栏
-        '<span id="reply_title"/>',                                            // 回复框标题
-        '<a class="btn_close reply_button" title="关闭" href="#">',            // 回复框关闭按钮
+        '<div id="reply_titlebar">',  // 回复框标题栏
+        '<span id="reply_title"/>',  // 回复框标题
+        '<a class="btn_close reply_button" title="关闭" href="#">',  // 回复框关闭按钮
         '<img alt="关闭" src=""></img>',
         '</a>',
         '</div>',
 
-        '<div id="reply_subjectbar">',                                         // 回复框主题栏
-        '<input type="text" id="reply_subject" name="reply_subject"/>',        // 回复框主题
-        '<span id="reply_type"/>',                                             // 回复类型
-        '<span id="reply_panel_button">',                                     // 回复面板按钮
-        '<a href="#" class="reply_button btn_expression" title="发帖心情">',   // 发帖心情按钮
+        '<div id="reply_subjectbar">',  // 回复框主题栏
+        '<input type="text" id="reply_subject" name="reply_subject"/>',  // 回复框主题
+        '<span id="reply_type"/>',  // 回复类型
+        '<span id="reply_panel_button">',  // 回复面板按钮
+        '<a href="#" class="reply_button btn_expression" title="发帖心情">',  // 发帖心情按钮
         '<img alt="发帖心情" src=""/>',
         '</a>',
-        '<a href="#" class="reply_button btn_emotion" title="插入表情">',      // 插入表情按钮
+        '<a href="#" class="reply_button btn_emotion" title="插入表情">',  // 插入表情按钮
         '<img alt="插入表情" src=""/>',
         '</a>',
-        '<a href="#" class="reply_button btn_upload" title="插入表情">',       // 上传文件按钮
+        '<a href="#" class="reply_button btn_upload" title="插入表情">',  // 上传文件按钮
         '<img alt="上传文件" src=""/>',
         '</a>',
         '</span>',
@@ -279,25 +281,25 @@ function createReplyPopup()
 
         '</div>',
 
-        '<div id="reply_panel_container">',                                    // 回复框面板
-        '<div class="panel hidden" id="expression_panel"></div>',              // 心情面板
-        '<div class="panel hidden" id="emotion_panel"></div>',                 // 表情面板
-        '<div class="panel hidden" id="upload_panel"></div>',                  // 上传面板
+        '<div id="reply_panel_container">',  // 回复框面板
+        '<div class="panel hidden" id="expression_panel"></div>',  // 心情面板
+        '<div class="panel hidden" id="emotion_panel"></div>',  // 表情面板
+        '<div class="panel hidden" id="upload_panel"></div>',  // 上传面板
         '</div>',
 
-        '<div id="reply_content_container">',                                  // 回复框内容
-        '<textarea id="reply_content" name="reply_content"/>',                 // 文本输入框
-        '<span id="reply_counter"/>',                                          // 字数统计
+        '<div id="reply_content_container">',  // 回复框内容
+        '<textarea id="reply_content" name="reply_content"/>',  // 文本输入框
+        '<span id="reply_counter"/>',  // 字数统计
         '</div>',
 
-        '<div id="reply_footer_container">',                                   // 回复框尾部
-        '<div id="reply_actions">',                                            // 回复动作按钮
-        '<button id="btn_reply" class="reply_action">回复</button>',           // 回复
-        '<button id="btn_preview" class="reply_action">预览</button>',         // 预览
-        '<button id="btn_cancel" class="reply_action">退出</button>',          // 退出
+        '<div id="reply_footer_container">',  // 回复框尾部
+        '<div id="reply_actions">',  // 回复动作按钮
+        '<button id="btn_reply" class="reply_action">回复</button>',  // 回复
+        '<button id="btn_preview" class="reply_action">预览</button>',  // 预览
+        '<button id="btn_cancel" class="reply_action">退出</button>',   // 退出
         '</div>',
         '</div>'
-    ].join(''))
+    ].join(''));
 
     /* 若要显示标题栏 */
     if (showTitle)
@@ -309,22 +311,42 @@ function createReplyPopup()
 /* 处理引用的内容 */
 function processQuoteContent(value)
 {
+    /* 正则表达式定义 */
+    var rmultiquote = 
+        /(\[quotex?\][\s\S]*?)\[quotex?\][\s\S]*\[\/quotex?\]([\s\S]*?\[\/quotex?\])/gi;
+
+    var rbegdupblank = /\s*\n*(\[quotex?\])\s*\n*/i,
+        renddupblank = /\s*\n*(\[\/quotex?\])\s*\n*/i;
+
+    var remotubb = /(\[em\d{2}\])/gi;
+    var rupldubb = /(\[upload=[^,]*?)(,0)?(\])/gi;
+
     /* 删除多余的空行 */
-    value = value.replace(/\s*\n*(\[quotex?\])\s*\n*/, "$1\n")
-        .replace(/\s*\n*(\[\/quotex?\])\s*\n*/, "\n\n$1\n");
+    value = value.replace(rbegblank, '$1\n').replace(renddupblank, '\n\n$1\n');
+
+    /* 删除多重引用内容 */
+    if (removeMultiQuote) value= value.replace(rmultiquote, '$1$2');
 
     /* 查找插入位置 */
-    var insPos = value.indexOf("[/b]") + 4;
+    var insPos = value.indexOf('[/b]') + 4;
 
     /* 构造插入内容 */
-    var insContent = "[url=" + getOrigURL(location.href) + ",t="
-        + (openInNewtab?'blank':'self') + "][color=" + color + "][b]"
-        + prompt + "[/b][/color][/url]\n";
+    var insContent = [ 
+        '[url=',
+        getOrigURL(location.href),
+        ',t=', 
+        (openInNewtab?'blank':'self'), 
+        '][color=',
+        promptColor, 
+        '][b]', 
+        promptString, 
+        '/b][/color][/url]\n'
+    ].join('');
 
     /* 拼接内容 */
     return value.substring(0, insPos) + insContent + value.substring(insPos)
-        .replace(/(\[em\d{2}\])/g, "[noubb]$1[/noubb]")       // 不解释 [em**] 标签
-        .replace(/(\[upload=[^,]*?)(,0)?(\])/g, "$1,1$3");    // 不自动展开图片
+        .replace(remotubb, "[noubb]$1[/noubb]")  // 不解释 [em**] 标签
+        .replace(rupldubb, "$1,1$3");  // 不自动展开图片
 }
 
 /* 动态显示回复文本框 */
@@ -342,18 +364,27 @@ function showReplyPopup(ele, name)
     /* 填充页面元素 */
     $replyContainer
         .find('.reply_button img')
-            .attr('src', function() { return getButtonURL(this); })           // 设定按钮地址
+            .attr('src', function() { return getButtonURL(this); })  // 设定按钮地址
         .end()
-        .find('#reply_title')                                                 // 设定标题
+        .find('#reply_title')  // 设定标题
             .text($btn.attr('title') + '帖子 "' + title + '"')
         .end()
-        .find('input[name="reply_subject"]').val('Re: ' + title).end()        // 设定主题
-        .find('#reply_counter').text(maxTextareaLength + '字').end()          // 设定字数计数初值
+        .find('input[name="reply_subject"]').val('Re: ' + title).end()  // 设定主题
+        .find('#reply_counter').text(maxTextareaLength + '字').end()  // 设定字数计数初值
         .find('#reply_type')
-            .html($btn.find('img').clone())                                   // 设定回复类型指示
+            .html($btn.find('img').clone())  // 设定回复类型指示
         .end()
-        .css({                                                                // 设定回复框的样式
-            width: replyPopupWidth,
+        .css({  // 设定回复框的样式
+            width: function () {
+                var theWidth = parseFloat(replyPopupWidth);
+                var winWidth = $(window).width();
+
+                if (replyPopupWidth.slice(-1) == '%') {  // 百分数据表示
+                    theWidth = theWidth / 100;
+                    return Math.min(theWidth, 0.8) * winWidth;
+                } else
+                    return Math.min(theWidth, 0.8 * winWidth);
+            },
             opacity: transparent,
             backgroundColor: backgroundColor,
             left: function() { 
@@ -372,16 +403,16 @@ function showReplyPopup(ele, name)
 
     /* 获取具体的回复框 */
     var $replyContent = $replyContainer.find('#reply_content')
-        .css('height', textInputHeight);
+        .css('height', textInputHeight)
+        .attr('placeholder', '请输入回复');
+
+    /* 获取字数统计框 */
+    var $replyCounter = $replyContainer.find('#reply_counter');
 
     /* 临时函数 */
     var callback = function() {
         /* 设定字数统计初值 */
-        charCount(
-            $replyContent, 
-            $replyContainer.find('#reply_counter'), 
-            maxTextareaLength
-        );
+        charCount($replyContent, $replyCounter, maxTextareaLength);
 
         /* 显示回复框 */
         $replyContainer.show(animateSpeed, function() {
@@ -393,26 +424,31 @@ function showReplyPopup(ele, name)
                     return (preOffset > offset) ? preOffset : preOffset + offset;
                 });
         });
-    }
+    };
 
-    if (name == 'quote') { // 如果是快速引用类型
+    /* 执行该函数 */
+    callback();
+
+    /* 如果是快速引用类型 */
+    if (name == 'quote') {
         var rscript = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
-        var replyURL = $btn.siblings().filter('a[href^="reannounce.asp"]')
+        var replyURL = $btn.siblings().filter('a[href*="reannounce.asp"]')
             .attr('href');
 
+        /* 如果找不到引用回复地址 */
+        if (replyURL === undefined)
+            return $replyContainer;
+
+        /* 获取引用的内容 */
         $.get(replyURL, function(data) {
             var value = $('<div>').append(data.replace(rscript, ''))
                 .find('textarea#content').val();
 
-            $replyContent.val(function() {
-                return processQuoteContent(value);
-            });
+            $replyContent.val(function() { return processQuoteContent(value); });
 
-            callback();
+            /* 设定字数统计初值 */
+            charCount($replyContent, $replyCounter, maxTextareaLength);
         });
-    } else { // 否则为普通的快速回复类型
-        $replyContent.attr('placeholder', '请输入回复');
-        callback();
     }
 
     return $replyContainer;
@@ -433,6 +469,8 @@ function createEmotPanel()
     var arr = new Array();
     var html = '<img src="emot/simpleemot/emot%n%.gif" alt="[em%n%]">';
 
+    arr.push('<span class="label">插入表情: </span>');
+
     for (var i = 0; i <= 90; i++) {
         if (i >= 38 && i <= 70)   /* 过滤不常用表情 */
             continue; 
@@ -449,6 +487,8 @@ function createExprPanel()
     var arr = new Array();
     var html = '<img src="face/face%n%.gif" alt="face%n%">';
 
+    arr.push('<span class="label">选择心情:</span>');
+
     for (var i = 1; i <= 22; i++)
         arr.push(html.replace(/%n%/g, i));
 
@@ -462,51 +502,48 @@ function createUpldPanel()
     var boardID = location.search.match(/boardid=(\d+)/i);
 
     if (boardID == null)
-        return ''
-    else {
-        return [
-            '<iframe width="100%" scrolling="no" height="24" frameborder="0" ',
-            'id="uploadframe" src="saveannounce_upload.asp?boardid=',
-            boardID[1],
-            '" name="uploadframe"></iframe>'
-        ].join('');
-    }
+        return '';
+
+    return [
+        '<iframe width="100%" scrolling="no" height="24" frameborder="0" ',
+        'id="uploadframe" src="saveannounce_upload.asp?boardid=',
+        boardID[1],
+        '" name="uploadframe"></iframe>'
+    ].join('');
 }
 
 /* 创建快速回复框面板 */
 function createReplyPanel(panelName)
 {
-    /* 获取待显示的面板对象 */
-    var $panel = $('#' + panelName);
+    var htmlFrag;
 
-    /* 若面板已经创建过 */
-    if ($panel.is(':parent'))
-        return $panel;
+    switch (panelName) {
+        case 'emotion_panel':
+            htmlFrag = createEmotPanel();
+            break;
+        case 'expression_panel':
+            htmlFrag = createExprPanel();
+            break;
+        case 'upload_panel':
+            htmlFrag = createUpldPanel();
+            break;
+        default:
+            htmlFrag = '面板创建失败';
+    }
 
-    return $panel.html(function() {
-        var htmlFrag;
-
-        switch (panelName) {
-            case 'emotion_panel':
-                htmlFrag = createEmotPanel();
-                break;
-            case 'expression_panel':
-                htmlFrag = createExprPanel();
-                break;
-            case 'upload_panel':
-                htmlFrag = createUpldPanel();
-                break;
-        }
-
-        return htmlFrag;
-    });
+    return htmlFrag;
 }
 
 /* 切换显示快速回复框面板 */
 function toggleReplyPanel(name)
 {
     /* 获取待显示的面板对象 */
-    var $panel = createReplyPanel(name + '_panel');
+    var panelName = name + '_panel';
+    var $panel = $('#' + panelName);
+
+    /* 若面板未创建则填充面板元素 */
+    if ($panel.is(':empty'))
+        $panel.html(createReplyPanel(panelName));
 
     /* 控制面板的显示与隐藏 */
     $panel.siblings().addClass('hidden');
@@ -522,12 +559,11 @@ function triggerButtonClick(ele)
     if (name == 'nonexist')
         return;
 
-    /* 显示回复框 */
-    if (name == 'reply' || name == 'quote')
+    if (name == 'reply' || name == 'quote') // 显示回复框 
         showReplyPopup(ele, name);
-    else if (name == 'close')
+    else if (name == 'close') // 关闭回复框
         hideReplyPopup();
-    else
+    else // 切换显示面板
         toggleReplyPanel(name);
 }
 
@@ -536,6 +572,10 @@ function main()
 {
     /* 不在frames中再次执行该脚本 */
     if (window.top != window.self)
+        return;
+
+    /* 如果未登录，直接退出 */
+    if (document.cookie.indexOf('aspsky') == -1)
         return;
 
     /* 添加自定义的样式 */
