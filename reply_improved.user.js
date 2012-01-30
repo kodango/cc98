@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.4
+// @version        0.5
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -15,24 +15,32 @@
 
 /* 用户设置开始 */
 
-var showTitle = false;            // 回复框是否显示标题
-var transparent = 1;              // 回复框透明度
-var backgroundColor = '#F4F9FB';  // 回复框背景色
-var replyPopupWidth = '56%';      // 回复框宽度
-var textInputHeight = '100px';    // 文本框高度
-var animateSpeed = 'slow';        // 动画速度
-var openInNewtab = false;         // 链接是否在新标签页打开
-var promptColor = "green";        // 查看原帖提示颜色
-var promptString = "|查看原帖|";  // 查看提示文字
-var removeMulitQuote = true;      // 删除多重引用的内容(仅保留最后一重)
+var ShowTitle = false;            // 回复框是否显示标题
+var Transparent = 1;              // 回复框透明度
+var BackgroundColor = '#F4F9FB';  // 回复框背景色
+var ReplyPopupWidth = '56%';      // 回复框宽度
+var TextInputHeight = '100px';    // 文本框高度
+var AnimateSpeed = 500;           // 动画速度
+var OpenInNewtab = false;         // 链接是否在新标签页打开
+var PromptColor = "green";        // 查看原帖提示颜色
+var PromptString = "|查看原帖|";  // 查看提示文字
+var RemoveMultiQuote = true;      // 删除多重引用的内容(仅保留最后一重)
+var AutoSaveInterval = 30000;      // 自动保存数据间隔(毫秒)
+var KeepTime = 1000;              // 状态显示时间
+var ErrorColor = 'red';           // 错误提示颜色
+var NormalColor = 'black';        // 正确提示颜色
 
 /* 用户设置结束 */
 
 /* 文本区别的最大输入长度 */
-var maxTextareaLength = 16240;
+var MaxTextareaLength = 16240;
+
+/* 全局定时器 */
+var StatusKeepTimer = -1;
+var AutoSaveTimer = -1;
 
 /* 图片按钮地址 (普通地址或者Base64编码)*/
-var imageURLs = {
+var ImageURLs = {
     /* 快速回复按钮Base64编码 */
     reply: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAwNC8xMS8wOGGVBZQAAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzQGstOgAAACSUlEQVQ4jdWPv08TYRjHP3e9X71eLR4ltZgAElIwRk3o4OLE4MBgnF0cTEyd+Bd0YPIvcHYxDgwurjiQwFAlRAZjQZpKoBQptNcf1/d6r4sktNakJC4+yZO8yZvv5/l8FS43+tOXdzLpaft1s9m81/GFZph64MRja3bMfFLaOywqfYEEMAWMDIAZmXn35sPcxCtVU4yJqXHiVxwaXpPdbyWA1ljq6lw/8K7v+5v9JCEER0dHvPm4hBeWuD0/A0DKuUXZ2yYMQ7Y3d7Gi5qralx1RFIWzs7OeLZfL7OzscNoukhp36QifUSvDg5kXjFoZgq4gNT6CV2ve7wcCoKpqzwZBQKvVotPpYMUUxuxZFueWAVicW2bMnkW3VIQQ2kCgoig9CxCGIbqhUat57J1ssLK1BMDK1hJ7JxvUax4RTQ20QTBV7b0TiUTQNI0rxnWOD0roVozvx+u8+/ycUvUTUkoqBx6arq4PZWiaJo7jMG09QnY19gse9apP4XCDetXnR8FDhvilr41nfxieAy9ONBollUrRbreRMkcxeM9ppUQQdFFVJQxDufllrZpbfVsuDFXZNE2SySSKomDbNtcaN+h2u9i2zcLCQg74ABxLKcVQhhctE4kEvu8jpcSyLIB9oCylFABDAwEMw8AwjB5zoAGI88xQlf82gw5fynCY+Q8N/wkwm82OAvFisZi4bOVkMpmYnJycAur5fP7nuWEHwHXdSjqdfiyEcIYB6rruua5bucgY2C2bzcZ/PyNAtO+7BXQB8vl8vT/7C2ss4WrplFZOAAAAAElFTkSuQmCC',
     /* 快速引用按钮Base64编码 */
@@ -58,12 +66,37 @@ function getRelativeURL(url)
 /* 返回原帖地址 */
 function getOrigURL(url)
 {
-    return getRelativeURL(url
-        .replace(/reannounce/, "dispbbs")
-        .replace(/reply.*?&/g, "")
-        .replace(/&bm=/, "#")
-    );
+    return getRelativeURL(url .replace(/reannounce/, "dispbbs")
+        .replace(/reply.*?&/g, "").replace(/&bm=/, "#"));
 }
+
+/* 返回版块ID */
+function getBoardID()
+{
+    var boardID = location.search.match(/boardid=(\d+)/i);
+    return boardID ? boardID[1] : '39';
+}
+
+/* 返回帖子ID */
+function getTopicID()
+{
+    var topicID = location.search.match(/&id=(\d+)/i);
+    return topicID ? topicID[1] : '0';
+}
+
+/* 函数类扩展：周期执行某个函数 (参考 Moontools)*/
+Function.prototype.periodical = function(periodical, bind, args) {
+    var self = this;
+
+    return setInterval(function() {
+        self.apply(bind, args || []);
+    }, periodical);
+}
+
+/* Storage操作函数 */
+function setValue(key, val) { window.sessionStorage.setItem(key, val); }
+function getValue(key, def) { return window.sessionStorage.getItem(key, def); }
+function delValue(key) { window.sessionStorage.removeItem(key); }
 
 /* 添加自定义的样式 */
 function addCustomizedCSS()
@@ -151,15 +184,17 @@ function addCustomizedCSS()
             border: 1px solid #ccc;\
             background-color: #fefefe;\
         }\
-        #reply_footer_container { margin: 10px 5px 5px; }\
-        #reply_actions { text-align: left;}\
+        #reply_footer_container { \
+            margin: 5px 5px 0px;\
+            text-align: right;\
+        }\
         .reply_action {\
             cursor: pointer;\
             font-size: 1em;\
             font-weight: bold;\
             border-radius: 5px;\
-            margin-right: 10px;\
-            padding: 2px 15px;\
+            margin-left: 10px;\
+            padding: 2px 12px;\
             border: 1px solid #c4c4c4;\
             font-family: Verdana,Arial,Helvetica,sans-serif;\
         }\
@@ -168,7 +203,17 @@ function addCustomizedCSS()
             border: 1px solid #c8c8c8;\
             box-shadow: 0 0 3px rgba(120, 80, 100, 0.4);\
         }\
-        #reply_counter {\
+        .asv_action {\
+            float: left;\
+            cursor: pointer;\
+            font-size: 0.9em;\
+            padding: 2px 8px;\
+        }\
+        #btn_save {\
+            border-right: 1px solid #999;\
+            padding-left: 0px;\
+        }\
+        #reply_status_box {\
             right: 3px;\
             bottom: 3px;\
             padding: 2px;\
@@ -177,26 +222,31 @@ function addCustomizedCSS()
             position: absolute;\
             border: 1px solid #ccc;\
         }\
-        .warn_text { color: red; }\
         .hidden { display: none; }\
     ');
 }
 
 /* 动态统计文本框的剩余字数 */
-function charCount($frmObj, $cntObj, maxChars) 
+function baseCharCount(ta, notifyWhere, maxChars) 
 {
+    /* 获取实际的jQuery对象 */
+    if (!(ta instanceof jQuery))
+        ta = $(ta);
+
     /* 统计剩余字数 */
-    var remain = maxChars - $frmObj.val().length;
+    var remain = maxChars - ta.val().length;
+    var color = remain < 0 ? ErrorColor : NormalColor;
 
-    if (remain < 0)　// 字数超出限制时警告
-        $cntObj.addClass('warn_text');
-    else
-        $cntObj.removeClass('warn_text');
+    /* 显示统计状态 */
+    showStatus(remain + '字', color, notifyWhere);
 
-    /* 显示剩余字数 */
-    $cntObj.text(function(index, oldValue) {
-        return oldValue.replace(/-?\d+/, remain);
-    });
+    return remain;
+}
+
+/* Textarea文本框字数统计 */
+function textareaCharCount(ta, notifyWhere)
+{
+    return baseCharCount(ta, notifyWhere, MaxTextareaLength);
 }
 
 /* 返回指定按钮的名称 */
@@ -217,7 +267,7 @@ function getButtonName(ele)
 /* 返回指定按钮的图片地址 */
 function getButtonURL(ele)
 {
-    return imageURLs[getButtonName(ele)];
+    return ImageURLs[getButtonName(ele)];
 }
 
 /* 创建快速回复以及快速引用按钮 */
@@ -235,8 +285,9 @@ function createReplyButtons()
                 '</a>',
             ].join('');
         })
-        .find('.reply_button img')
-            .attr('src', function() { return getButtonURL(this); }); // 设定按钮的地址
+        .find('.reply_button img').attr('src', function() {  // 设定按钮的地址
+            return getButtonURL(this); 
+        });
 }
 
 /* 创建快速回复弹出窗口 */
@@ -289,11 +340,15 @@ function createReplyPopup()
 
         '<div id="reply_content_container">',  // 回复框内容
         '<textarea id="reply_content" name="reply_content"/>',  // 文本输入框
-        '<span id="reply_counter"/>',  // 字数统计
+        '<span id="reply_status_box"/>',  // 字数统计
         '</div>',
 
         '<div id="reply_footer_container">',  // 回复框尾部
-        '<div id="reply_actions">',  // 回复动作按钮
+        '<div id="asv_actions">',
+        '<span id="btn_save" class="asv_action">保存数据</span>',     // 保存数据
+        '<span id="btn_recover" class="asv_action">恢复数据</span>',  // 恢复数据
+        '</div>',
+        '<div id="reply_actions">',
         '<button id="btn_reply" class="reply_action">回复</button>',  // 回复
         '<button id="btn_preview" class="reply_action">预览</button>',  // 预览
         '<button id="btn_cancel" class="reply_action">退出</button>',   // 退出
@@ -302,7 +357,7 @@ function createReplyPopup()
     ].join(''));
 
     /* 若要显示标题栏 */
-    if (showTitle)
+    if (ShowTitle)
         $replyContainer.find('#reply_titlebar').show();
 
     return $replyContainer;
@@ -315,17 +370,17 @@ function processQuoteContent(value)
     var rmultiquote = 
         /(\[quotex?\][\s\S]*?)\[quotex?\][\s\S]*\[\/quotex?\]([\s\S]*?\[\/quotex?\])/gi;
 
-    var rbegdupblank = /\s*\n*(\[quotex?\])\s*\n*/i,
-        renddupblank = /\s*\n*(\[\/quotex?\])\s*\n*/i;
+    var rbegdupblank = /\s*\n*(\[quotex?\])\s*\n*/i;
+    var renddupblank = /\s*\n*(\[\/quotex?\])\s*\n*/i;
 
     var remotubb = /(\[em\d{2}\])/gi;
     var rupldubb = /(\[upload=[^,]*?)(,0)?(\])/gi;
 
     /* 删除多余的空行 */
-    value = value.replace(rbegblank, '$1\n').replace(renddupblank, '\n\n$1\n');
+    value = value.replace(rbegdupblank, '$1\n').replace(renddupblank, '\n\n$1\n');
 
     /* 删除多重引用内容 */
-    if (removeMultiQuote) value= value.replace(rmultiquote, '$1$2');
+    if (RemoveMultiQuote) value= value.replace(rmultiquote, '$1$2');
 
     /* 查找插入位置 */
     var insPos = value.indexOf('[/b]') + 4;
@@ -335,11 +390,11 @@ function processQuoteContent(value)
         '[url=',
         getOrigURL(location.href),
         ',t=', 
-        (openInNewtab?'blank':'self'), 
+        (OpenInNewtab?'blank':'self'), 
         '][color=',
-        promptColor, 
+        PromptColor, 
         '][b]', 
-        promptString, 
+        PromptString, 
         '/b][/color][/url]\n'
     ].join('');
 
@@ -370,23 +425,21 @@ function showReplyPopup(ele, name)
             .text($btn.attr('title') + '帖子 "' + title + '"')
         .end()
         .find('input[name="reply_subject"]').val('Re: ' + title).end()  // 设定主题
-        .find('#reply_counter').text(maxTextareaLength + '字').end()  // 设定字数计数初值
         .find('#reply_type')
             .html($btn.find('img').clone())  // 设定回复类型指示
         .end()
         .css({  // 设定回复框的样式
             width: function () {
-                var theWidth = parseFloat(replyPopupWidth);
+                var theWidth = parseFloat(ReplyPopupWidth);
                 var winWidth = $(window).width();
 
-                if (replyPopupWidth.slice(-1) == '%') {  // 百分数据表示
-                    theWidth = theWidth / 100;
-                    return Math.min(theWidth, 0.8) * winWidth;
-                } else
+                if (ReplyPopupWidth.slice(-1) == '%')  // 百分数据表示
+                    return Math.min(theWidth / 100, 0.8) * winWidth;
+                else
                     return Math.min(theWidth, 0.8 * winWidth);
             },
-            opacity: transparent,
-            backgroundColor: backgroundColor,
+            opacity: Transparent,
+            backgroundColor: BackgroundColor,
             left: function() { 
                 var theWidth = $(this).outerWidth();
                 var winWidth = $(window).width();
@@ -403,19 +456,13 @@ function showReplyPopup(ele, name)
 
     /* 获取具体的回复框 */
     var $replyContent = $replyContainer.find('#reply_content')
-        .css('height', textInputHeight)
+        .css('height', TextInputHeight)
         .attr('placeholder', '请输入回复');
-
-    /* 获取字数统计框 */
-    var $replyCounter = $replyContainer.find('#reply_counter');
 
     /* 临时函数 */
     var callback = function() {
-        /* 设定字数统计初值 */
-        charCount($replyContent, $replyCounter, maxTextareaLength);
-
         /* 显示回复框 */
-        $replyContainer.show(animateSpeed, function() {
+        $replyContainer.show(AnimateSpeed, function() {
             $replyContainer.find('#reply_subject')
                 .css('paddingLeft', function(index, oldValue) {    // 微调回复主题框
                     var offset = $replyContainer.find('#reply_type').outerWidth();
@@ -444,10 +491,9 @@ function showReplyPopup(ele, name)
             var value = $('<div>').append(data.replace(rscript, ''))
                 .find('textarea#content').val();
 
-            $replyContent.val(function() { return processQuoteContent(value); });
-
-            /* 设定字数统计初值 */
-            charCount($replyContent, $replyCounter, maxTextareaLength);
+            $replyContent.val(function() { 
+                return processQuoteContent(value); 
+            });
         });
     }
 
@@ -459,8 +505,13 @@ function hideReplyPopup()
 {
     var $replyContainer = $('#reply_container');
 
+    /* 清除旧的定时器 */
+    clearIntervalTimer();
+    /* 退出前备份数据 */
+    saveData($replyContainer.find('#reply_content'));
+
     if ($replyContainer.is(':visible'))
-        $replyContainer.hide(animateSpeed);
+        $replyContainer.hide(AnimateSpeed);
 }
 
 /* 创建表情面板 */
@@ -472,14 +523,14 @@ function createEmotPanel()
     arr.push('<span class="label">插入表情: </span>');
 
     for (var i = 0; i <= 90; i++) {
-        if (i >= 38 && i <= 70)   /* 过滤不常用表情 */
+        if (i >= 38 && i <= 70)   // 过滤不常用表情
             continue; 
 
         arr.push(html.replace(/%n%/g,  (('0' + i).slice(-2))));
     }
 
     return arr.join('');
-}
+} 
 
 /* 创建心情面板 */
 function createExprPanel()
@@ -498,16 +549,10 @@ function createExprPanel()
 /* 创建上传文件面板 */
 function createUpldPanel()
 {
-    /* 获取版块ID */
-    var boardID = location.search.match(/boardid=(\d+)/i);
-
-    if (boardID == null)
-        return '';
-
     return [
         '<iframe width="100%" scrolling="no" height="24" frameborder="0" ',
         'id="uploadframe" src="saveannounce_upload.asp?boardid=',
-        boardID[1],
+        getBoardID(),
         '" name="uploadframe"></iframe>'
     ].join('');
 }
@@ -550,6 +595,96 @@ function toggleReplyPanel(name)
     $panel.toggleClass('hidden');
 }
 
+/* 获取存储Key值 */
+function getKey() { return 'cc98bbscontent_tid' + getTopicID(); }
+
+/* 显示状态信息 */
+function showStatus(status, color, notifyWhere, keepTime)
+{
+    if (!(notifyWhere instanceof jQuery))
+        notifyWhere = $(notifyWhere);
+
+    /* 如果不提供状态通知位置, 则直接返回 */
+    if (notifyWhere.length == 0)
+        return;
+
+    /* 设定状态和颜色 */
+    notifyWhere.css('color', color).text(function(index, oldValue) {
+        return status ? status : oldValue;
+    });
+
+    /* 展开状态信息 */
+    notifyWhere.slideDown(AnimateSpeed, function() {
+        /* 如果存在定时器，则先清除并重置 */
+        if (StatusKeepTimer != -1)  {
+            clearTimeout(StatusKeepTimer);
+            StatusKeepTimer = -1;
+        }
+
+        /* 如果设定，则保持时间为keepTime值 */
+        if (keepTime) {
+            StatusKeepTimer = setTimeout(function() {
+                notifyWhere.slideUp(AnimateSpeed);
+            }, keepTime);
+        }
+    });
+}
+
+/* 备份文本框数据 */
+function saveData(ta, auto, notifyWhere)
+{
+    if (!(ta instanceof jQuery))
+        ta = $(ta);
+
+    var data = ta.val();
+
+    if (!data) return;
+
+    /* 获得当前时间 */
+    var now = (new Date()).toLocaleTimeString();
+
+    /* 构造显示状态 */
+    var status = (auto == 1) ? '帖子内容自动保存于' + now
+        : '帖子内容保存于' + now;
+
+    /* 保存数据 */
+    setValue(getKey(), data);
+
+    /* 显示状态信息 */
+    showStatus(status, NormalColor, notifyWhere, KeepTime);
+}
+
+/* 恢复文本框数据 */
+function recoverData(ta, notifyWhere)
+{
+    /* 获取上次保存的数据 */
+    var data = getValue(getKey(), '');
+    var status;
+
+    if (data) {  // 发现已备份的数据
+        if (!(ta instanceof jQuery))
+            ta = $(ta);
+
+        if (ta.val() && !confirm('此操作将覆盖当前帖子内容，确定要恢复数据吗?'))
+            status = '放弃恢复数据';
+        else {
+            status = '成功恢复数据';
+
+            ta.val(data);
+        }
+    } else  // 未发现
+        status = '没有可以恢复的数据';
+
+    showStatus(status, NormalColor, notifyWhere, KeepTime);
+}
+
+/* 清除并重置周期定时器 */
+function clearIntervalTimer()
+{
+    clearInterval(AutoSaveTimer);
+    AutoSaveTimer = -1;
+}
+
 /* 触发按钮点击事件 */
 function triggerButtonClick(ele)
 {
@@ -575,8 +710,8 @@ function main()
         return;
 
     /* 如果未登录，直接退出 */
-    if (document.cookie.indexOf('aspsky') == -1)
-        return;
+    //if (document.cookie.indexOf('aspsky') == -1)
+        //return;
 
     /* 添加自定义的样式 */
     addCustomizedCSS();
@@ -620,22 +755,47 @@ function main()
 
     /* 捕获文本框的各种事件 */
     $('#reply_content')
-        .live('input', function() {  // 动态统计文本框字数
-            charCount(
-                $(this), 
-                $('#reply_counter'),
-                maxTextareaLength
-            );
-        })
-        .live('focus', function() {
-            $('#reply_counter').show(animateSpeed);    // 显示字数统计框
+        .live('input focus', function() {  // 动态统计文本框字数
+            var $replyContent = $(this);
+            var $replyStatusBox = $('#reply_status_box');
+
+            /* 实时统计字数 */
+            var remain = textareaCharCount($replyContent, $replyStatusBox);
+
+            /* 自动备份数据: 未开始自动备份, 而且有输入数据 */
+            if (AutoSaveTimer == -1 && remain != MaxTextareaLength) {
+                AutoSaveTimer = saveData.periodical(
+                    AutoSaveInterval, window, [$replyContent, 1, $replyStatusBox]
+                );
+            }
         })
         .live('blur', function() {
-            $('#reply_counter').hide(animateSpeed);    // 隐藏字数统计框 
+            $('#reply_status_box').slideUp(AnimateSpeed);    // 隐藏字数统计框 
         });
+
+    /* 自动备份事件处理 */
+    $('.asv_action').live('click', function() {
+        var $replyContent = $('#reply_content');
+        var $replyStatusBox = $('#reply_status_box');
+
+        /* 清除旧的定时器 */
+        clearIntervalTimer();
+
+        if (this.id == 'btn_save')
+            saveData($replyContent, 0, $replyStatusBox);
+        else
+            recoverData($replyContent, $replyStatusBox);
+
+        /* 自动备份数据 */
+        AutoSaveTimer = saveData.periodical(
+            AutoSaveInterval, window, [$replyContent, 1, $replyStatusBox]
+        );
+    });
+
+    $(window).unload(function() { saveData($('#reply_content'), 0); });
 }
 
-/* Call main function when dom is ready */
-$(document).ready(main);
+/* 执行main函数 */
+main();
 
 })();
