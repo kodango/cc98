@@ -19,14 +19,14 @@ var ShowTitle = false;            // 回复框是否显示标题
 var Transparent = 1;              // 回复框透明度
 var BackgroundColor = '#F4F9FB';  // 回复框背景色
 var ReplyPopupWidth = '56%';      // 回复框宽度
-var TextInputHeight = '300px';    // 文本框高度
+var TextInputHeight = '250px';    // 文本框高度
 var AnimateSpeed = 500;           // 动画速度
 var OpenInNewtab = false;         // 链接是否在新标签页打开
 var PromptColor = "green";        // 查看原帖提示颜色
 var PromptString = "|查看原帖|";  // 查看提示文字
 var RemoveMultiQuote = true;      // 删除多重引用的内容(仅保留最后一重)
-var AutoSaveInterval = 30000;      // 自动保存数据间隔(毫秒)
-var KeepTime = 1000;              // 状态显示时间
+var AutoSaveInterval = 30000;     // 自动保存数据间隔(毫秒)
+var KeepTime = 3000;              // 状态显示时间
 var ErrorColor = 'red';           // 错误提示颜色
 var NormalColor = 'black';        // 正确提示颜色
 
@@ -214,13 +214,8 @@ function addCustomizedCSS()
             padding-left: 0px;\
         }\
         #reply_status_box {\
-            right: 3px;\
-            bottom: 3px;\
-            padding: 2px;\
             display: none;\
-            border-radius: 4px;\
             position: absolute;\
-            border: 1px solid #ccc;\
         }\
         .hidden { display: none; }\
     ');
@@ -462,7 +457,7 @@ function showReplyPopup(ele, name)
     /* 临时函数 */
     var callback = function() {
         /* 显示回复框 */
-        $replyContainer.show(AnimateSpeed, function() {
+        $replyContainer.slideDown(AnimateSpeed, function() {
             $replyContainer.find('#reply_subject')
                 .css('paddingLeft', function(index, oldValue) {    // 微调回复主题框
                     var offset = $replyContainer.find('#reply_type').outerWidth();
@@ -511,7 +506,7 @@ function hideReplyPopup()
     saveData($replyContainer.find('#reply_content'));
 
     if ($replyContainer.is(':visible'))
-        $replyContainer.hide(AnimateSpeed);
+        $replyContainer.slideUp(AnimateSpeed);
 }
 
 /* 创建表情面板 */
@@ -599,7 +594,7 @@ function toggleReplyPanel(name)
 function getKey() { return 'cc98bbscontent_tid' + getTopicID(); }
 
 /* 显示状态信息 */
-function showStatus(status, color, notifyWhere, keepTime)
+function showStatus(html, style, notifyWhere, keepTime)
 {
     if (!(notifyWhere instanceof jQuery))
         notifyWhere = $(notifyWhere);
@@ -608,23 +603,38 @@ function showStatus(status, color, notifyWhere, keepTime)
     if (notifyWhere.length == 0)
         return;
 
+    /* 默认样式 */
+    var defaultStyle = {
+        right: '3px',
+        bottom:'5px',
+        opacity: 0.6,
+        padding: '2px 4px',
+        color: NormalColor,
+        borderRadius: '4px',
+        border: '1px solid #cccccc',
+        backgroundColor: '#e4e8ef'
+    };
+
+    if (typeof style === 'string')
+        style = { color: style };
+
+    /* 扩展默认样式 */
+    style = $.extend({}, defaultStyle, style);
+
     /* 设定状态和颜色 */
-    notifyWhere.css('color', color).text(function(index, oldValue) {
-        return status ? status : oldValue;
+    notifyWhere.css(style).html(function(index, oldValue) {
+        return html ? html : oldValue;
     });
 
     /* 展开状态信息 */
-    notifyWhere.slideDown(AnimateSpeed, function() {
+    notifyWhere.fadeTo(AnimateSpeed, style.opacity, function() {
         /* 如果存在定时器，则先清除并重置 */
-        if (StatusKeepTimer != -1)  {
-            clearTimeout(StatusKeepTimer);
-            StatusKeepTimer = -1;
-        }
+        clearTimeout(StatusKeepTimer);
 
         /* 如果设定，则保持时间为keepTime值 */
         if (keepTime) {
             StatusKeepTimer = setTimeout(function() {
-                notifyWhere.slideUp(AnimateSpeed);
+                notifyWhere.fadeOut(AnimateSpeed);
             }, keepTime);
         }
     });
@@ -770,7 +780,7 @@ function main()
             }
         })
         .live('blur', function() {
-            $('#reply_status_box').slideUp(AnimateSpeed);    // 隐藏字数统计框 
+            $('#reply_status_box').fadeOut(AnimateSpeed);    // 隐藏字数统计框 
         });
 
     /* 自动备份事件处理 */
