@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.6.5
+// @version        0.7
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -15,10 +15,10 @@
 
 /* 用户设置开始 */
 
-var ReplyTransp = 1;              // 回复框透明度
-var BackgroundColor = '#F4F9FB';  // 回复框背景色
+var ReplyPopupTransp = 1;         // 回复框透明度
+var ReplyPopupBgColor = '#F4F9FB';// 回复框背景色
 var ReplyPopupWidth = '56%';      // 回复框宽度
-var TextInputHeight = '250px';    // 文本框高度
+var TextInputHeight = '270px';    // 文本框高度
 var AnimateSpeed = 500;           // 动画速度
 var OpenInNewtab = false;         // 链接是否在新标签页打开
 var PromptColor = "green";        // 查看原帖提示颜色
@@ -28,6 +28,7 @@ var AutoSaveInterval = 30000;     // 自动保存数据间隔(毫秒)
 var KeepTime = 3000;              // 状态显示保持时间
 var ErrorStatusColor = 'red';     // 错误状态颜色
 var NormStatusColor = 'black';    // 正常状态颜色
+
 var UserStatusBoxStyle = {        // 状态框自定义样式
     opacity: 0.8,                 // 状态框透明度
     padding: '2px 5px',           // 状态框内边距
@@ -36,6 +37,7 @@ var UserStatusBoxStyle = {        // 状态框自定义样式
     backgroundColor: '#fffef9',   // 状态框背景色
     border: '1px solid #cccccc'   // 状态框边框
 };
+
 var UserCountBoxStyle = {         // 字数统计框样式
     opacity: 0.6,                 // 字数统计框透明度
     fontWeight: 'bold',           // 字体加粗
@@ -373,6 +375,38 @@ function showReplyPopup(ele, name) {
     var quoteURL = $btn.siblings().filter('a[href*="reannounce.asp"]')
         .attr('href');
 
+    /* 调整回复框高度 */
+    var $replyContent = $replyContainer.find('#reply_content')
+        .css('height', TextInputHeight)
+        .attr('placeholder', '请输入回复');
+
+    /* 设定回复框样式 */
+    $replyContainer.css({
+        opacity: ReplyPopupTransp,
+        backgroundColor: ReplyPopupBgColor,
+        width: function () {
+            var theWidth = parseFloat(ReplyPopupWidth);
+            var winWidth = $(window).width();
+
+            if (ReplyPopupWidth.slice(-1) == '%')  // 百分数据表示
+                return Math.min(theWidth / 100, 0.8) * winWidth;
+            else
+                return Math.min(theWidth, 0.8 * winWidth);
+        },
+        left: function () { 
+            var theWidth = $(this).outerWidth();
+            var winWidth = $(window).width();
+
+            if (theWidth < winWidth / 2)
+                return winWidth / 2;
+            else
+                return 3.0 / 4 * (winWidth - theWidth);
+        },
+        top: function () {
+            return ($(window).height() - $(this).outerHeight()) / 2;
+        }
+    });
+
     /* 填充页面元素 */
     $replyContainer
         .find('.reply_button img')
@@ -382,65 +416,23 @@ function showReplyPopup(ele, name) {
         .find('#reply_send')
             .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
             .prop({quote: (quoteURL || location.href), topic: title})   // 增加自定义的属性
-        .end()
-        .css({  // 设定回复框的样式
-            width: function () {
-                var theWidth = parseFloat(ReplyPopupWidth);
-                var winWidth = $(window).width();
+        .end();
 
-                if (ReplyPopupWidth.slice(-1) == '%')  // 百分数据表示
-                    return Math.min(theWidth / 100, 0.8) * winWidth;
-                else
-                    return Math.min(theWidth, 0.8 * winWidth);
+    /* 显示回复框 */
+    $replyContainer.slideDown(AnimateSpeed, function () {
+        $replyContainer.find('.reply_input').css({    // 微调回复主题框
+            paddingLeft: function (index, oldValue) {
+                var offset = $replyContainer.find('.btn_send').outerWidth();
+                var preOffset = parseFloat(oldValue) || 0;
+                
+                return (preOffset > offset) ? preOffset : preOffset + offset;
             },
-            opacity: ReplyTransp,
-            backgroundColor: BackgroundColor,
-            left: function () { 
-                var theWidth = $(this).outerWidth();
-                var winWidth = $(window).width();
-
-                if (theWidth < winWidth / 2)
-                    return winWidth / 2;
-                else
-                    return 3.0 / 4 * (winWidth - theWidth);
-            },
-            top: function () {
-                var theHeight = $(this).outerHeight();
-                var winHeight = $(window).height();
-
-                if (theHeight < winHeight / 2)
-                    return winHeight / 4;
-                else
-                    return 3.0 / 4 * (winHeight - theHeight);
+            width: function (index, oldValue) {
+                var offset = $replyContainer.find('#reply_panel_button').width();
+                return $(this).parent('div').width() - offset - 20;
             }
         });
-
-    /* 获取具体的回复框 */
-    var $replyContent = $replyContainer.find('#reply_content')
-        .css('height', TextInputHeight)
-        .attr('placeholder', '请输入回复');
-
-    /* 临时函数 */
-    var callback = function () {
-        /* 显示回复框 */
-        $replyContainer.slideDown(AnimateSpeed, function () {
-            $replyContainer.find('.reply_input').css({    // 微调回复主题框
-                paddingLeft: function (index, oldValue) {
-                    var offset = $replyContainer.find('.btn_send').outerWidth();
-                    var preOffset = parseFloat(oldValue) || 0;
-                    
-                    return (preOffset > offset) ? preOffset : preOffset + offset;
-                },
-                width: function (index, oldValue) {
-                    var offset = $replyContainer.find('#reply_panel_button').width();
-                    return $(this).parent('div').width() - offset - 20;
-                }
-            });
-        });
-    };
-
-    /* 执行该函数 */
-    callback();
+    });
 
     /* 如果是快速引用类型 */
     if (quoteURL && name == 'quote') {
@@ -680,6 +672,13 @@ function sendMessages(user, title, message, ta, statusBox) {
         /* 显示在正中间 */
         style = setAbsPosition(statusBox, ta, 'middle', 'middle');
         showStatus(status, statusBox, style, KeepTime, true);
+    }).error(function () { // 如果发生错误
+        /* 显示在正中间 */
+        var style = setAbsPosition(statusBox, ta, 'middle', 'middle');
+        var status = '<font color="' + ErrorStatusColor +
+                '">✘ 消息发送给"' + user + '"过程中发生错误</font>';
+
+        showStatus(status, statusBox, style, KeepTime, true);
     });
 }
 
@@ -890,7 +889,8 @@ function main() {
             $replyStatusBox.empty();
 
             /* 依次发送消息 */
-            $.each(this.value.split(/[，,\s]/), function (i, u) {
+            var users = this.value.split(/[，,\s]/);
+            $.each(users, function (i, u) {
                 if (!u) return;
 
                 sendMessages(u, title, messages, $replyContent, $replyStatusBox);
@@ -905,6 +905,43 @@ function main() {
         clearTimeout(StatusKeepTimer);
     }).live('mouseout', function () { // 移出后延迟隐藏
         StatusKeepTimer = delayHideNotify(this, KeepTime, StatusKeepTimer);
+    });
+
+    /* 拖拽对象 */
+    var dragObject = null;
+    /* 鼠标与拖拽对象之间的偏移 */
+    var mouseOffset = null;
+
+    /* 捕获鼠标事件 */
+    $(document).mousemove(function(evt) {
+        if (!dragObject)
+            return;
+
+        /* 动态更新位置样式 */
+        $(dragObject).css({
+            left: evt.pageX - mouseOffset.left - $(document).scrollLeft(),
+            top: evt.pageY - mouseOffset.top - $(document).scrollTop()
+        });
+
+        /* 避免拖拽的过程中选中页面上的文本 */
+        window.getSelection().removeAllRanges();
+    }).mouseup(function(evt) {
+        dragObject = null;
+    });
+
+    /* 捕获回复框的鼠标按下事件 */
+    $('#reply_container').live('mousedown', function (evt) {
+        if (evt.target != this)
+            return;
+
+        dragObject = this;
+        dragObject.style.cursor = 'move';
+
+        var dragObjOffset = $(dragObject).offset();
+        mouseOffset = {
+            left: evt.pageX - dragObjOffset.left,
+            top: evt.pageY - dragObjOffset.top
+        };
     });
 }
 
