@@ -138,6 +138,9 @@ function addCustomizedCSS() {
             box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);\
             font-family: Verdana, Arial, Helvetica, sans-serif;\
         }\
+        #reply_container.drag_container {\
+            box-shadow: 0 0 36px rgba(0, 0, 0, 0.9);\
+        }\
         #reply_header_container { margin: 0 5px; }\
         #reply_subjectbar {\
             height: 27px;\
@@ -920,13 +923,16 @@ function main() {
         /* 动态更新位置样式 */
         $(dragObject).css({
             left: evt.pageX - mouseOffset.left - $(document).scrollLeft(),
-            top: evt.pageY - mouseOffset.top - $(document).scrollTop()
-        });
+            top: evt.pageY - mouseOffset.top - $(document).scrollTop(),
+        }).addClass('drag_container');
 
         /* 避免拖拽的过程中选中页面上的文本 */
         window.getSelection().removeAllRanges();
     }).mouseup(function(evt) {
-        dragObject = null;
+        if (dragObject) {
+            $(dragObject).removeClass('drag_container');
+            dragObject = null;
+        }
     });
 
     /* 捕获回复框的鼠标按下事件 */
