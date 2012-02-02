@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.7
+// @version        0.8
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -15,6 +15,9 @@
 
 /* 用户设置(默认) */
 var DefaultOptions = {
+    autoReply: true,             // 10秒错误后自动读秒回复
+    gotoLast: false,             // 回复成功后跳转到最后一页
+    reloadTimeout: 0,            // 回复成功后几秒后刷新
     animateSpeed: 500,           // 动画速度
     openInNewtab: false,         // 链接是否在新标签页打开
     promptColor: 'green',        // 查看原帖提示颜色
@@ -28,14 +31,14 @@ var DefaultOptions = {
 
     /* 快速回复框样式 */
     replyPopupStyle: {
-        opacity: 1,                                          // 透明度
-        width: '56%',                                        // 宽度
-        fontSize: '1em',                                     // 字体大小
-        borderRadius: '5px',                                 // 边框圆角
-        backgroundColor: '#F4F9FB',                          // 背景颜色
-        border: '5px solid transparent',                     // 边框
-        boxShadow: '0 0 18px rgba(0, 0, 0, 0.4)',            // 框阴影
-        fontFamily: 'Verdana, Helvetica, sans-serif'         // 字体
+        opacity: 1,                                    // 透明度
+        width: '56%',                                  // 宽度
+        fontSize: '1em',                               // 字体大小
+        borderRadius: '5px',                           // 边框圆角
+        backgroundColor: '#F4F9FB',                    // 背景颜色
+        border: '5px solid transparent',               // 边框
+        boxShadow: '0 0 18px rgba(0, 0, 0, 0.4)',      // 框阴影
+        fontFamily: 'Verdana, Helvetica, sans-serif'   // 字体
     },
 
     /* 文本框样式 */
@@ -69,11 +72,24 @@ var DefaultOptions = {
 };
 
 /* 全局设置 */
-var GlobalOptions = loadOptions();
+var Options;
 
 /* 全局定时器 */
-var StatusKeepTimer = -1;
+var StatusTimer = -1;
 var AutoSaveTimer = -1;
+
+/* 拖拽对象 */
+var DragObject = null;
+/* 鼠标与拖拽对象之间的偏移 */
+var MouseOffset = null;
+
+/* 页面相关的参数字典 */
+var PageArgs = null;
+/* 记录表单Post部分内容 */
+var PartialFormData = '';
+
+/* 假设一个大数作为帖子的最后一页 */
+var LastPageN = 32767;
 
 /* 图片按钮地址 (普通地址或者Base64编码)*/
 ImageURLs = {
@@ -98,11 +114,10 @@ ImageURLs = {
 /* 函数类扩展：周期执行某个函数 (参考 Moontools)*/
 Function.prototype.periodical = function (periodical, bind, args) {
     var self = this;
-    var callback = function () {
-        self.apply(bind, args || []);
-    };
 
-    return setInterval(callback, periodical);
+    return setInterval(function () {
+        self.apply(bind, args || []);
+    }, periodical);
 };
 
 /* sessionStorage操作函数 */
@@ -115,7 +130,7 @@ function saveOptions(opt) {
     if (opt === undefined)
         return;
 
-    opt = $.extend({}, GlobalOptions, opt);
+    opt = $.extend({}, Options, opt);
     localStorage.setItem('rimopt', JSON.stringify(opt));
 }
 
@@ -137,16 +152,42 @@ function getOrigURL(url) {
         .replace(/reply.*?&/g, '').replace(/&bm=/, '#');
 }
 
-/* 返回版块ID */
-function getBoardID() {
-    var boardID = location.search.match(/boardid=(\d+)/i);
-    return boardID ? boardID[1] : '39';
+/* 返回帖子的最后一页 */
+function getLastPageURL(url)
+{
+    return url.replace(/(star=)\d*/, '$1' + LastPageN)
+        .replace(/#.*/, "#bottom");
 }
 
-/* 返回帖子ID */
-function getTopicID() {
-    var topicID = location.search.match(/&id=(\d+)/i);
-    return topicID ? topicID[1] : '0';
+/* 解析获得与本页面相关的参数 */
+function parsePageArgs() {
+    var ret = {}, args, name, val, cookie, match;
+
+    /* 帖子楼层数数 */
+    ret.floor = location.hash.slice(1) || '1';
+
+    /* 获取URL地址查询参数 */
+    args = location.search.toLowerCase().slice(1).split('&');
+    for (var i = 0, len = args.length; i < len; i++) {
+        [name, val] = args[i].split('=');
+        ret[name] = val;
+    }
+
+    /* 获取帖子标题和版块名称 */
+    ret.title = document.title.replace(/ » CC98论坛/, '');
+    ret.board = $('.tableBorder2 td[valign] a[href*="list.asp"]')
+        .eq(1).text();
+
+    /* 获取用户名与加密过的密码 */
+    cookie = document.cookie;
+
+    match = cookie.match(/username=([^&;]*)/);
+    ret.user = match ? match[1] : '';
+
+    match = cookie.match(/password=([^&;]*)/);
+    ret.passwd = match ? match[1] : '';
+
+    return ret;
 }
 
 /* 添加自定义的样式 */
@@ -160,17 +201,22 @@ function addCustomizedCSS() {
             cursor: pointer;\
             vertical-align: middle;\
         }\
-        .btn_reply { margin-left: 5px; }\
-        .btn_quote { margin-left: 5px; }\
-        .btn_close img { opacity: 0.3; }\
+        .btn_reply, .btn_quote {\
+            margin-left: 5px;\
+        }\
+        .btn_close img {\
+            opacity: 0.3;\
+        }\
         #reply_container {\
             display: none;\
             position: fixed;\
         }\
-        #reply_container.drag_container {\
+        #reply_container.dragged {\
             box-shadow: 0 0 36px rgba(0, 0, 0, 0.9);\
         }\
-        #reply_header_container { margin-bottom: 5px; }\
+        #reply_header_container {\
+            margin-bottom: 10px;\
+        }\
         #reply_subjectbar {\
             height: 27px;\
             position: relative;\
@@ -182,34 +228,41 @@ function addCustomizedCSS() {
             background-color: #fefefe;\
             border: 1px solid #ccc;\
         }\
+        .btn_send, #reply_panel_button {\
+            position: absolute;\
+            background-color: #eee;\
+            border: 1px solid #ccc;\
+        }\
         .btn_send {\
             left: 0px;\
             top: 0px;\
             padding: 5px;\
-            position: absolute;\
-            background-color: #eee;\
-            border: 1px solid #ccc;\
         }\
         #reply_panel_button {\
             top: 0px;\
             right: 0px;\
             padding: 4px;\
-            position: absolute;\
-            background-color: #eee;\
-            border: 1px solid #ccc;\
         }\
-        #reply_panel_button .reply_button { margin: 0 3px; }\
-        #reply_panel_container { margin: 0 5px; }\
+        #reply_panel_button .reply_button {\
+            margin: 0 3px;\
+        }\
+        #reply_panel_container {\
+            margin: 0 5px;\
+        }\
         .panel .label {\
             margin-right: 5px;\
             float: left;\
         }\
-        .panel img { margin-right: 5px; }\
+        .panel img {\
+            margin-right: 5px;\
+        }\
         #reply_content_container {\
             position: relative;\
-            margin-top: 5px;\
+            margin-top: 10px;\
         }\
-        #reply_content { width: 100%; }\
+        #reply_content { \
+            width: 100%;\
+        }\
         #reply_footer_container { \
             margin-top: 5px;\
             text-align: right;\
@@ -222,24 +275,19 @@ function addCustomizedCSS() {
             font-weight: bold;\
             border-radius: 5px;\
             margin-left: 10px;\
-            padding: 2px 12px;\
+            padding: 2px 10px;\
             border: 1px solid #c4c4c4;\
             font-family: Verdana, Helvetica, sans-serif;\
-        }\
-        .reply_action:hover {\
-            border-radius: 3px;\
-            border: 1px solid #c8c8c8;\
             box-shadow: 0 0 3px rgba(120, 80, 100, 0.4);\
         }\
-        .asv_action {\
+        #daily_actions {\
             float: left;\
+        }\
+        #daily_actions span {\
             cursor: pointer;\
             font-size: 0.9em;\
             padding: 2px 8px;\
-        }\
-        #btn_save {\
             border-right: 1px solid #999;\
-            padding-left: 0px;\
         }\
         #reply_status_box,\
         #reply_cnt_box {\
@@ -249,7 +297,9 @@ function addCustomizedCSS() {
         #reply_status_box font {\
             display: block;\
         }\
-        .hidden { display: none; }\
+        .hidden {\
+            display: none;\
+        }\
     ');
 }
 
@@ -273,26 +323,25 @@ function getButtonURL(ele) {
 
 /* 创建快速回复以及快速引用按钮 */
 function createReplyButtons() {
-    $('img[src$="message.gif"]').closest('td')  // 查找插入位置
-        .append(function (index) {
-            return [
-                '<a class="reply_button btn_reply" title="快速回复">',  // 快速回复按钮
-                '<img alt="快速回复" src=""/>',
-                '</a>',
+    var html = [
+        '<a class="reply_button btn_reply" title="快速回复">',  // 快速回复按钮
+        '<img alt="快速回复" src=""/>',
+        '</a>',
 
-                '<a class="reply_button btn_quote" title="快速引用">',  // 快速引用按钮
-                '<img alt="快速引用" src=""/>',
-                '</a>'
-            ].join('');
-        })
-        .find('.reply_button img').attr('src', function () {  // 设定按钮的地址
+        '<a class="reply_button btn_quote" title="快速引用">',  // 快速引用按钮
+        '<img alt="快速引用" src=""/>',
+        '</a>'
+    ].join('');
+
+    $('img[src$="message.gif"]').closest('td')                  // 查找插入位置
+        .append(html)
+        .find('.reply_button img').attr('src', function () {    // 设定按钮的地址
             return getButtonURL(this); 
         });
 }
 
 /* 创建快速回复弹出窗口 */
 function createReplyPopup() {
-    /* 尝试查找回复框容器 */
     var $replyContainer = $('#reply_container');
 
     /* 若已经添加到文档中 */
@@ -341,14 +390,15 @@ function createReplyPopup() {
         '</div>',
 
         '<div id="reply_footer_container">',  // 回复框尾部
-        '<div id="asv_actions">',
-        '<span id="btn_save" class="asv_action">保存数据</span>',     // 保存数据
-        '<span id="btn_recover" class="asv_action">恢复数据</span>',  // 恢复数据
+        '<div id="daily_actions">',
+        '<span id="btn_save">保存数据</span>',     // 保存数据
+        '<span id="btn_recover">恢复数据</span>',  // 恢复数据
+        '<span id="btn_instime">插入时间</span>',  // 插入时间
         '</div>',
         '<div id="reply_actions">',
-        '<button id="btn_reply" class="reply_action">回复</button>',  // 回复
-        '<button id="btn_preview" class="reply_action">预览</button>',  // 预览
-        '<button id="btn_cancel" class="reply_action">退出</button>',   // 退出
+        '<input type="button" id="btn_submit" class="reply_action" value="回复"/>',  // 回复
+        '<input type="button" id="btn_preview" class="reply_action" value="预览"/>',  // 预览
+        '<input type="button" id="btn_cancel" class="reply_action" value="退出"/>',   // 退出
         '</div>',
         '</div>'
     ].join(''));
@@ -357,33 +407,32 @@ function createReplyPopup() {
 }
 
 /* 处理引用的内容 */
-function processQuoteContent(value, quoteURL) {
+function processQuoteContent(value) {
     /* 正则表达式定义 */
     var rmultiquote = 
         /(\[quotex?\][\s\S]*?)\[quotex?\][\s\S]*\[\/quotex?\]([\s\S]*?\[\/quotex?\])/gi;
-
     var rbegdupblank = /\s*\n*(\[quotex?\])\s*\n*/i;
     var renddupblank = /\s*\n*(\[\/quotex?\])\s*\n*/i;
-
     var remotubb = /(\[em\d{2}\])/gi;
     var rupldubb = /(\[upload=[^,]*?)(,0)?(\])/gi;
+
+    var insPos, insContent;
 
     /* 删除多余的空行 */
     value = value.replace(rbegdupblank, '$1\n').replace(renddupblank, '\n\n$1\n');
 
     /* 删除多重引用内容 */
-    if (GlobalOptions.removeMultiQuote) 
+    if (Options.removeMultiQuote) 
         value = value.replace(rmultiquote, '$1$2');
 
     /* 查找插入位置 */
-    var insPos = value.indexOf('[/b]') + 4;
+    insPos = value.indexOf('[/b]') + 4;
 
     /* 构造插入内容 */
-    var insContent = [ 
-        '[url=', getOrigURL(quoteURL), ',t=',
-        GlobalOptions.openInNewtab ? 'blank' : 'self',
-        '][color=', GlobalOptions.promptColor, '][b]',
-        GlobalOptions.promptString, '[/b][/color][/url]\n'
+    insContent = [ 
+        '[url=', PageArgs.quote, ',t=', Options.openInNewtab ? 'blank' : 'self',
+        '][color=', Options.promptColor, '][b]', Options.promptString, 
+        '[/b][/color][/url]\n'
     ].join('');
 
     /* 拼接内容 */
@@ -394,25 +443,18 @@ function processQuoteContent(value, quoteURL) {
 
 /* 动态显示回复文本框 */
 function showReplyPopup(ele, name) {
-    /* 获取帖子标题 */
-    var title = document.title.replace(/ » CC98论坛/, "");
-
-    /* 尝试查找回复框容器 */
-    var $replyContainer = createReplyPopup();
-
-    /* 获取点击的按钮 */
-    var $btn = $(ele);
-
-    /* 找到引用的地址 */
-    var quoteURL = $btn.siblings().filter('a[href*="reannounce.asp"]')
-        .attr('href');
+    var $replyContainer, $replyContent, $btn;
+    var quoteURL, style;
+    
+    $replyContainer = createReplyPopup();
+    $btn = $(ele);
 
     /* 调整回复框高度 */
-    var $replyContent = $replyContainer.find('#reply_content')
-        .css(GlobalOptions.textAreaStyle).attr('placeholder', '请输入回复');
+    $replyContent = $replyContainer.find('#reply_content').css(Options.textAreaStyle)
+        .attr('placeholder', '请输入回复内容, 最多可输入' + Options.maxTextareaLength + '字');
 
     /* 扩展用户样式 */
-    var style = {
+    style = {
         width: 'auto',
         left: function () { 
             return ($(window).width() - $(this).outerWidth()) / 4 * 3;
@@ -422,7 +464,7 @@ function showReplyPopup(ele, name) {
         }
     };
 
-    style = $.extend({}, style, GlobalOptions.replyPopupStyle);
+    style = $.extend({}, style, Options.replyPopupStyle);
     $replyContainer.css(style);
 
     /* 填充页面元素 */
@@ -430,14 +472,13 @@ function showReplyPopup(ele, name) {
         .find('.reply_button img')
             .attr('src', function () { return getButtonURL(this); })  // 设定按钮地址
         .end()
-        .find('#reply_subject').val('Re: ' + title).end()  // 设定主题
+        .find('#reply_subject').val('Re: ' + PageArgs.title).end()  // 设定主题
         .find('#reply_send')
             .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
-            .prop({quote: (quoteURL || location.href), topic: title})   // 增加自定义的属性
         .end();
 
     /* 显示回复框 */
-    $replyContainer.slideDown(GlobalOptions.animateSpeed, function () {
+    $replyContainer.slideDown(Options.animateSpeed, function () {
         $replyContainer.find('.reply_input').css({    // 微调回复主题框
             paddingLeft: function (index, oldValue) {
                 var offset = $replyContainer.find('.btn_send').outerWidth();
@@ -447,7 +488,6 @@ function showReplyPopup(ele, name) {
             },
             width: function (index, oldValue) {
                 var $replyBtnPanel = $replyContainer.find('#reply_panel_button');
-
                 var btnNum = $replyBtnPanel.children().length;
                 var btnWidth = $replyBtnPanel.width() / btnNum;
 
@@ -455,6 +495,10 @@ function showReplyPopup(ele, name) {
             }
         });
     });
+
+    /* 找到引用的地址 */
+    quoteURL = $btn.siblings().filter('a[href*="reannounce.asp"]').attr('href');
+    PageArgs.quote = getOrigURL(quoteURL);
 
     /* 如果是快速引用类型 */
     if (quoteURL && name == 'quote') {
@@ -465,9 +509,7 @@ function showReplyPopup(ele, name) {
             var value = $('<div>').append(data.replace(rscript, ''))
                 .find('textarea#content').val();
 
-            $replyContent.val(function () { 
-                return processQuoteContent(value, quoteURL); 
-            });
+            $replyContent.val(processQuoteContent(value));
         });
     }
 
@@ -478,18 +520,20 @@ function showReplyPopup(ele, name) {
 function hideReplyPopup() {
     var $replyContainer = $('#reply_container');
 
+    if ($replyContainer.is(':hidden'))
+        return;
+
     /* 清除旧的定时器 */
     clearIntervalTimer();
+
     /* 退出前备份数据 */
     saveData($replyContainer.find('#reply_content'), true);
 
-    if ($replyContainer.is(':visible')) {
-        $replyContainer
-            .find('#reply_footer_container')
-                .slideUp(GlobalOptions.animateSpeed)
-            .end()
-        .slideUp(GlobalOptions.animateSpeed);
-    }
+    $replyContainer
+        .find('#reply_footer_container')
+            .slideUp(Options.animateSpeed)
+        .end()
+    .slideUp(Options.animateSpeed);
 }
 
 /* 创建表情面板 */
@@ -527,41 +571,41 @@ function createUpldPanel() {
     return [
         '<iframe width="100%" scrolling="no" height="24" frameborder="0" ',
         'id="uploadframe" src="saveannounce_upload.asp?boardid=',
-        getBoardID(),
+        PageArgs.boardid,
         '" name="uploadframe"></iframe>'
     ].join('');
 }
 
 /* 创建快速回复框面板 */
-function createReplyPanel(panelName) {
-    var htmlFrag;
+function createReplyPanel(name) {
+    var html;
 
-    switch (panelName) {
-        case 'emotion_panel':
-            htmlFrag = createEmotPanel();
+    switch (name) {
+        case 'emotion':    // 表情面板
+            html = createEmotPanel();
             break;
-        case 'expression_panel':
-            htmlFrag = createExprPanel();
+        case 'expression': // 心情面板
+            html = createExprPanel();
             break;
-        case 'upload_panel':
-            htmlFrag = createUpldPanel();
+        case 'upload':     // 上传面板
+            html = createUpldPanel();
             break;
         default:
-            htmlFrag = '面板创建失败';
+            html = '面板创建失败';
     }
 
-    return htmlFrag;
+    return html;
 }
 
 /* 切换显示快速回复框面板 */
 function toggleReplyPanel(name) {
     /* 获取待显示的面板对象 */
-    var panelName = name + '_panel';
-    var $panel = $('#' + panelName);
+    var $panel = $('#' + name + '_panel');
 
     /* 若面板未创建则填充面板元素 */
-    if ($panel.is(':empty'))
-        $panel.html(createReplyPanel(panelName));
+    if ($panel.is(':empty')) {
+        $panel.html(createReplyPanel(name));
+    }
 
     /* 控制面板的显示与隐藏 */
     $panel.siblings().addClass('hidden');
@@ -569,9 +613,13 @@ function toggleReplyPanel(name) {
 }
 
 /* 显示通知信息 */
-function showNotify(content, box, style, append) {
+function showNotify(content, box, style, type, append) {
     if (!(box instanceof jQuery))
         box = $(box);
+
+    /* 状态类型：错误或者正常 */
+    type = (type || 'norm') + 'StatusColor';
+    content = $('<font color="' + Options[type] + '"/>').wrapInner(content);
 
     if (append) // 追加内容
         box.append(content);
@@ -579,7 +627,7 @@ function showNotify(content, box, style, append) {
         box.html(content);
 
     /* 设定样式并显示内容 */
-    //box.css(style).fadeTo(GlobalOptions.animateSpeed, style.opacity || 1);
+    //box.css(style).fadeTo(Options.animateSpeed, style.opacity || 1);
     box.css(style).show();
 }
 
@@ -594,21 +642,21 @@ function delayHideNotify(box, keepTime, oldTimer) {
 
     /* 清空状态并隐藏 */
     return setTimeout(function () {
-        box.fadeOut(GlobalOptions.animateSpeed, function() {
+        box.fadeOut(Options.animateSpeed, function() {
             $(this).empty();
         });
-    }, (keepTime||0) + GlobalOptions.animateSpeed);
+    }, (keepTime||0) + Options.animateSpeed);
 }
 
 /* 显示状态信息 */
-function showStatus(statusText, statusBox, style, keepTime, append) {
+function showStatus(status, box, style, keepTime, append, type) {
     /* 扩展用户定义样式 */
-    style = $.extend({}, style, GlobalOptions.statusBoxStyle);
+    style = $.extend({}, style, Options.statusBoxStyle);
 
-    showNotify(statusText, statusBox, style, append);
+    showNotify(status, box, style, type, append);
 
     /* 延迟隐藏信息 */
-    StatusKeepTimer = delayHideNotify(statusBox, keepTime, StatusKeepTimer);
+    StatusTimer = delayHideNotify(box, keepTime, StatusTimer);
 }
 
 /* 动态显示文本框的剩余字数 */
@@ -617,22 +665,18 @@ function showCharCount(ta, cntBox) {
     if (!(ta instanceof jQuery))
         ta = $(ta);
 
+    var remain, style, type;
+
     /* 统计剩余字数 */
-    var remain = GlobalOptions.maxTextareaLength - ta.val().length;
-    var status;
+    remain = Options.maxTextareaLength - ta.val().length;
 
     /* 显示在右下方 */
-    var style = setAbsPosition(cntBox, ta, 'right', 'bottom');
-    style = $.extend({}, style, GlobalOptions.countBoxStyle);
+    style = setAbsPosition(cntBox, ta, 'right', 'bottom');
+    style = $.extend({}, style, Options.countBoxStyle);
 
-    if (remain >= 0)
-        status = '<font color="' + GlobalOptions.normStatusColor + '">' +
-            remain + '字' + '</font>';
-    else
-        status = '<font color="' + GlobalOptions.errorStatusColor + '">' +
-            remain + '字' + '</font>';
-
-    showNotify(status, cntBox, style);
+    /* 超出字数限制时，提示类型为错误 */
+    type = (remain >= 0) ? 'norm' : 'error';
+    showNotify(remain + '字', cntBox, style, type);
 
     return remain;
 }
@@ -678,44 +722,42 @@ function setAbsPosition(target, refer, x, y) {
 }
 
 /* 发送站短 */
-function sendMessages(user, title, message, ta, statusBox) {
+function sendMessages(user, title, message, ta, box) {
     /* 构建post数据 */
-    var formData = "touser=" + encodeURIComponent(user) + "&title=" 
-        + encodeURIComponent(title) + "&message=" + encodeURIComponent(message);
+    var formData = 'touser=' + encodeURIComponent(user) + '&title=' 
+        + encodeURIComponent(title) + '&message=' + encodeURIComponent(message);
 
+    /* Post */
     $.post('messanger.asp?action=send', formData, function (data) {
-        var status, style;
-
-        if (data.indexOf('操作成功') != -1) // 发送成功
-            status = '<font color="' + GlobalOptions.normStatusColor +
-                '">✔ 消息成功发送给"' + user + '"</font>';
-        else
-            status = '<font color="' + GlobalOptions.errorStatusColor +
-                '">✘ 消息未能发送给"' + user + '"</font>';
+        var status, style, type;
 
         /* 显示在正中间 */
-        style = setAbsPosition(statusBox, ta, 'middle', 'middle');
-        showStatus(status, statusBox, style, GlobalOptions.keepTime, true);
-    }).error(function () { // 如果发生错误
-        /* 显示在正中间 */
-        var style = setAbsPosition(statusBox, ta, 'middle', 'middle');
-        var status = '<font color="' + GlobalOptions.errorStatusColor +
-                '">✘ 消息发送给"' + user + '"过程中发生错误</font>';
+        style = setAbsPosition(box, ta, 'middle', 'middle');
 
-        showStatus(status, statusBox, style, GlobalOptions.keepTime, true);
+        if (data.indexOf('操作成功') != -1) { // 发送成功
+            status = '✔ 消息成功发送给"' + user + '"';
+            type = 'norm'
+        } else { // 发送失败
+            status = '✘ 消息未能发送给"' + user + '"';
+            type = 'error';
+        }
+
+        showStatus(status, box, style, Options.keepTime, true, type);
     });
 }
 
 /* 获取存储Key值 */
-function getKey() { return 'cc98bbscontent_tid' + getTopicID(); }
+function getKey() { return 'cc98bbscontent_tid' + PageArgs.id; }
 
 /* 备份文本框数据 */
 function saveData(ta, auto, statusBox) {
     if (!(ta instanceof jQuery))
         ta = $(ta);
 
-    var data = ta.val();
-    var status = auto ? '自动: ' : '手动: ';
+    var data, status, style;
+
+    data = ta.val();
+    status = auto ? '自动: ' : '手动: ';
 
     if (data) { // 保存数据
         setValue(getKey(), data);
@@ -728,19 +770,17 @@ function saveData(ta, auto, statusBox) {
     if (statusBox === undefined)
         return;
 
-    status = '<font color="' + GlobalOptions.normStatusColor + '">' 
-        + status + '</font>';
-
     /* 显示在左下方 */
-    var style = setAbsPosition(statusBox, ta, 'left', 'bottom');
-    showStatus(status, statusBox, style, GlobalOptions.keepTime);
+    style = setAbsPosition(statusBox, ta, 'left', 'bottom');
+    showStatus(status, statusBox, style, Options.keepTime);
 }
 
 /* 恢复文本框数据 */
 function recoverData(ta, statusBox) {
+    var data, status, style;
+
     /* 获取上次保存的数据 */
-    var data = getValue(getKey(), '');
-    var status;
+    data = getValue(getKey(), '');
 
     /* 恢复数据过程 */
     if (data && (!ta.val() || confirm('确定要恢复数据吗'))) {
@@ -753,12 +793,9 @@ function recoverData(ta, statusBox) {
     } else
         status = data ? '放弃恢复数据' : '没有可以恢复的数据';
 
-    status = '<font color="' + NormStatusColor + '">' 
-        + status + '</font>';
-
     /* 显示在左下方 */
-    var style = setAbsPosition(statusBox, ta, 'left', 'bottom');
-    showStatus(status, statusBox, style, GlobalOptions.keepTime);
+    style = setAbsPosition(statusBox, ta, 'left', 'bottom');
+    showStatus(status, statusBox, style, Options.keepTime);
 }
 
 /* 清除并重置周期定时器 */
@@ -781,9 +818,6 @@ function triggerButtonClick(ele) {
     /* 获取按钮名称 */
     var name = getButtonName(ele);
 
-    if (name == 'nonexist')
-        return;
-
     switch (name) {
         case 'reply':  // 显示快速回复或者引用回复框
         case 'quote':
@@ -805,36 +839,157 @@ function triggerButtonClick(ele) {
     }
 }
 
-/* Main 函数 */
-function main() {
-    /* 不在frames中再次执行该脚本 */
-    if (window.top != window.self)
+/* 发表回复成功后的回调函数 */
+function postOnSuccess(data)
+{
+    var $replyContainer, $replyContent, $replyStatusBox;
+    var status, style;
+    
+    $replyContainer = $('#reply_container');
+    $replyContent = $replyContainer.find('#reply_content');
+    $replyStatusBox = $replyContainer.find('#reply_status_box');
+
+    /* 显示在正中间 */
+    style = setAbsPosition($replyStatusBox, $replyContent, 'middle', 'middle');
+
+    if (data.indexOf('本页面将在3秒后自动返回') != -1) {
+        if (Options.reloadTimeout == 0)
+            status = '回复帖子成功, 页面将会立即刷新';
+        else
+            status = '回复帖子成功，将会在' + Options.reloadTimeout +
+                '秒后自动刷新';
+
+        showStatus(status, $replyStatusBox, style, Options.keepTime, true);
+
+        setTimeout(function() {
+            var url = PageArgs.quote;
+
+            if (Options.gotoLast)
+                url = getLastPageURL(url);
+
+            location.href = url;
+            location.reload();
+        }, Options.reloadTimeout);
+
         return;
+    }
 
-    /* 如果未登录，直接退出 */
-    if (document.cookie.indexOf('aspsky') == -1)
+    status = data.match(/产生错误的原因：([\w\W]+)请您仔细阅读了/)[1]
+        .replace(/\n/g, " ").replace(/<[^>]*?>/g, "").replace(/\s*(.*)\s*/, "$1");
+
+    showStatus(status, $replyStatusBox, style, Options.keepTime, true, 'error');
+
+    if (status.indexOf('本论坛限制发贴距离时间为10秒') != -1) {
+        var $submitBtn = $replyContainer.find('#btn_submit')
+        var value = $submitBtn.val();
+
+        $submitBtn.value = '[10秒]';
+
+        for (var i = 9; i >= 1; i--) {
+            setTimeout((function(i) {
+                return function() { $submitBtn.val('[' + i + '秒]'); }
+            })(i), (10 - i) * 1000);
+        }
+
+        /* Restore submit button */
+        setTimeout(function() {
+            /* Restore submit button value */
+            $submitBtn.val(value);
+
+            if (Options.autoReply) { /* Auto reply */
+                postReply();
+            } else { /* Enable submit button */
+                $submitBtn.prop('disabled', false);
+            }
+        }, 10 * 1000);
+
         return;
+    }
+}
 
-    /* 添加自定义的样式 */
-    addCustomizedCSS();
+/* 发表回复 */
+function postReply()
+{
+    var $replyContainer, $replyContent;
+    var formData, postURL, face, content;
 
-    /* 创建快速回复以及快速引用按钮 */
-    createReplyButtons();
+    $replyContainer = $('#reply_container');
+    $replyContent = $replyContainer.find('#reply_content');
 
-    /* 绑定按钮点击事件 */
+    content = '\n' + getRelativeURL($replyContent.val());
+
+    face = $replyContainer.find('.btn_expression img').attr('src');
+    face = face.replace(/(.*\/)/, '');
+
+    postURL = 'SaveReAnnounce.asp?method=fastreply&BoardID=' + PageArgs.boardid;
+
+    formData = [
+        ['followup', PageArgs.id],
+        ['rootid', PageArgs.id],
+        ['star', PageArgs.star],
+        ['username', PageArgs.user],
+        ['passwd', PageArgs.passwd],
+        ['content', encodeURIComponent(content)],
+        ['expression', face],
+        ['totalusetable', 'bbs1'],
+        ['subject', $replyContainer.find('#reply_subject').val()],
+        ['signflag', 'yes']
+    ];
+
+    for (var i = 0, len = formData.length; i < len; i++)
+        formData[i] = formData[i].join('=');
+
+    $.post(postURL, formData.join('&'), postOnSuccess);
+}
+
+/* 触发回复动作事件 */
+function triggerActionClick(ele)
+{
+    switch (ele.id) {
+        case 'btn_cancel':
+            hideReplyPopup();
+            break;
+        case 'btn_submit':
+            ele.disabled = true;
+            postReply();
+            break;
+        case 'btn_preview':
+            alert('该功能还未实现');
+            break;
+        default:
+            break;
+    }
+}
+
+/* 插入内容到文本框中 */
+function insertIntoTextarea(insertText, ta)
+{
+    if (!(ta instanceof jQuery))
+        ta = $(ta);
+
+    ta.val(function (index, oldValue) {
+        var start = this.selectionStart;
+
+        return [
+            oldValue.slice(0, start),
+            insertText,
+            oldValue.slice(start)
+        ].join('');
+    }).focus();
+}
+
+/* 事件处理函数 */
+function handleEvents() {
+    /* 捕获回复按钮点击事件 */
     $('.reply_button').live('click', function (evt) {
-        /* 阻止事件默认行为以及停止向上冒泡 */
+        /* 阻止事件默认行为 */
         evt.preventDefault();
-        evt.stopPropagation();
 
         /* 激活按钮点击事件 */
         triggerButtonClick(this);
     });
 
-    /* 点击退出按钮隐藏快速回复框 */
-    $('#btn_cancel').live('click', hideReplyPopup);
-
-    /* 点击心情面板图标更换 */
+    /* 捕获心情图标点击事件(替换面板按钮图标)*/
     $('#expression_panel img').live('click', function () {
         $('.btn_expression img').attr('src', this.src);
     });
@@ -842,49 +997,49 @@ function main() {
     /* 点击表情插入UBB标签到文本框 */
     $('#emotion_panel img').live('click', function () {
         var insertText = this.src.replace(/(.*?emot(\d+)\.gif)/, "[em$2]");
-        var $replyContent = $('#reply_content');
-
-        $replyContent.val(function (index, oldValue) {
-            var start = $(this).prop('selectionStart');
-
-            return [
-                oldValue.slice(0, start),
-                insertText,
-                oldValue.slice(start)
-            ].join('');
-        }).focus();
+        insertIntoTextarea(insertText, '#reply_content');
     });
 
     /* 捕获文本框的各种事件 */
-    $('#reply_content')
-        .live('input focus', function () {  // 动态统计文本框字数
-            var $replyContent = $(this);
+    $('#reply_content').live('input focus', function () {  // 动态统计文本框字数
+        var $replyContainer, $replyContent, $actionBtn, remain;
 
-            /* 实时统计字数 */
-            var remain = showCharCount($replyContent, $('#reply_cnt_box'));
+        $replyContainer = $('#reply_container')
+        $replyContent = $(this);
 
-            /* 已经输入数据 */
-            if (remain != GlobalOptions.maxTextareaLength)　{
-                /* 自动备份数据: 未开始自动备份 */
-                if (AutoSaveTimer == -1) {
-                    AutoSaveTimer = saveData.periodical(
-                        GlobalOptions.autoSaveInterval, window,
-                        [$replyContent, true, $('#reply_status_box')]
-                    );
-                }
-            }
+        /* 实时统计字数 */
+        remain = showCharCount($replyContent, $('#reply_cnt_box'));
 
-            /* 显示回复框底部 */
-            $('#reply_footer_container').slideDown(GlobalOptions.animateSpeed);
-        })
-        .live('blur', function () {
-            delayHideNotify($('#reply_cnt_box'), 0);  // 隐藏字数统计框 
-        });
+        /* 显示回复框底部 */
+        $replyContainer.find('#reply_footer_container').slideDown(Options.animateSpeed);
+        $actionBtn = $replyContainer.find('#btn_submit, #btn_preview')
 
-    /* 自动备份事件处理 */
-    $('.asv_action').live('click', function () {
-        var $replyContent = $('#reply_content');
-        var $replyStatusBox = $('#reply_status_box');
+        /* 如果未输入数据则禁用动作按钮 */
+        if (remain == Options.maxTextareaLength) {
+            $actionBtn.prop('disabled', true);
+            return;
+        }
+
+        /* 激活动作按钮 */
+        $actionBtn.prop('disabled', false);
+
+        /* 已经开始自动备份则退出 */
+        if (AutoSaveTimer != -1)
+            return;
+
+        AutoSaveTimer = saveData.periodical(
+            Options.autoSaveInterval, window,
+            [$replyContent, true, $('#reply_status_box')]
+        );
+    }).live('blur', function () {
+        delayHideNotify($('#reply_cnt_box'), 0);  // 隐藏字数统计框 
+    });
+
+    /* 备份与恢复等日常操作 */
+    $('#btn_save, #btn_recover').live('click', function () {
+        var $replyContainer = $('#reply_container');
+        var $replyContent = $replyContainer.find('#reply_content');
+        var $replyStatusBox = $replyContainer.find('#reply_status_box');
 
         /* 清除旧的定时器 */
         clearIntervalTimer();
@@ -895,68 +1050,71 @@ function main() {
             recoverData($replyContent, $replyStatusBox);
     });
 
+    /* 插入时间 */
+    $('#btn_instime').live('click', function() {
+        insertIntoTextarea((new Date()).toLocaleString(), '#reply_content');
+    });
+
     /* 刷新页面之前保存帖子内容 */
-    $(window).unload(function () { saveData($('#reply_content'), true); });
+    $(window).unload(function () { 
+        saveData($('#reply_content'), true); 
+    });
 
     /* 捕获群发输入框的回车事件 */
     $('#reply_send').live('keyup', function (evt) {
-        if (this.value && evt.keyCode == 13) { // 按下回车
-            var $replyContent = $('#reply_content'), 
-                $replyStatusBox = $('#reply_status_box');
+        if (!this.value || evt.keyCode != 13)
+            return;
 
-            /* 设置消息正文与标题 */
-            var messages = '我在帖子"[url=' + getOrigURL(this.quote) +
-                '][color=blue]' + this.topic + '[/color][/url]"中@了你,快来看看吧~!';
-            var title = 'AtUser Messages from ' + decodeURIComponent(
-                document.cookie.replace(/.*username=(.*?)&.*/g, '$1')
-            );
+        var $replyContent, $replyStatus, messages, title;
 
-            /* 清空旧状态信息 */
-            $replyStatusBox.empty();
+        $replyContent = $('#reply_content'), 
+        $replyStatusBox = $('#reply_status_box');
 
-            /* 依次发送消息 */
-            var users = this.value.split(/[，,\s]/);
-            $.each(users, function (i, u) {
-                if (!u) return;
+        /* 设置消息正文与标题 */
+        messages= [
+            '我在帖子"[url=', PageArgs.quote, '][color=blue]', PageArgs.board,
+            '->', PageArgs.title, '[/color][/url]"中@了你,快来看看吧~!',
+        ].join('');
 
-                sendMessages(u, title, messages, $replyContent, $replyStatusBox);
-            });
+        title = '来自' + decodeURIComponent(PageArgs.user) + '的At信息';
 
-            toggleAtUser(this);
-        }
+        /* 清空旧状态信息 */
+        $replyStatusBox.empty();
+
+        /* 依次发送消息 */
+        $.each(this.value.split(/[，,\s]/), function (i, u) {
+            if (!u) return;
+
+            sendMessages(u, title, messages, $replyContent, $replyStatusBox);
+        });
+
+        toggleAtUser(this);
     });
 
     /* 状态框在鼠标悬浮时一直保持显示 */
     $('#reply_status_box').live('mouseover', function () {
-        clearTimeout(StatusKeepTimer);
+        clearTimeout(StatusTimer);
     }).live('mouseout', function () { // 移出后延迟隐藏
-        StatusKeepTimer = delayHideNotify(
-            this, GlobalOptions.keepTime, StatusKeepTimer
-        );
+        StatusTimer = delayHideNotify(this, Options.keepTime, StatusTimer);
     });
-
-    /* 拖拽对象 */
-    var dragObject = null;
-    /* 鼠标与拖拽对象之间的偏移 */
-    var mouseOffset = null;
 
     /* 捕获鼠标事件 */
     $(document).mousemove(function(evt) {
-        if (!dragObject)
+        if (!DragObject)
             return;
 
         /* 动态更新位置样式 */
-        $(dragObject).css({
-            left: evt.pageX - mouseOffset.left - $(document).scrollLeft(),
-            top: evt.pageY - mouseOffset.top - $(document).scrollTop(),
-        }).addClass('drag_container');
+        $(DragObject).css({
+            left: evt.pageX - MouseOffset.left - $(document).scrollLeft(),
+            top: evt.pageY - MouseOffset.top - $(document).scrollTop(),
+        }).addClass('dragged');
 
         /* 避免拖拽的过程中选中页面上的文本 */
         window.getSelection().removeAllRanges();
     }).mouseup(function(evt) {
-        if (dragObject) {
-            $(dragObject).removeClass('drag_container');
-            dragObject = null;
+        if (DragObject) {
+            $(DragObject).removeClass('dragged');
+            DragObject = null;
         }
     });
 
@@ -965,15 +1123,46 @@ function main() {
         if (evt.target != this)
             return;
 
-        dragObject = this;
-        dragObject.style.cursor = 'move';
+        var dragObjOffset;
 
-        var dragObjOffset = $(dragObject).offset();
-        mouseOffset = {
+        DragObject = this;
+        DragObject.style.cursor = 'move';
+        dragObjOffset = $(DragObject).offset();
+
+        MouseOffset = {
             left: evt.pageX - dragObjOffset.left,
             top: evt.pageY - dragObjOffset.top
         };
     });
+
+    /* 捕获回复动作事件 */
+    $('.reply_action').live('click', function() {
+        triggerActionClick(this);
+    });
+}
+
+/* Main 函数 */
+function main() {
+    /* 不在frames中再次执行该脚本 */
+    if (window.top != window.self)
+        return;
+
+    /* 加载用户设置 */
+    Options = loadOptions();
+    /* 解析页面参数 */
+    PageArgs = parsePageArgs();
+
+    /* 如果未登录，直接退出 */
+    if (!PageArgs.user)
+        return;
+    
+    /* 添加自定义的样式 */
+    addCustomizedCSS();
+    /* 创建快速回复以及快速引用按钮 */
+    createReplyButtons();
+
+    /* 监听事件并处理 */
+    handleEvents();
 }
 
 /* 执行main函数 */
