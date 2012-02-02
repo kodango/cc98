@@ -269,6 +269,9 @@ function addCustomizedCSS() {
             display: none;\
             height: 25px;\
         }\
+        #reply_actions {\
+            padding-right: 8px;\
+        }\
         .reply_action {\
             cursor: pointer;\
             font-size: 1em;\
@@ -282,6 +285,7 @@ function addCustomizedCSS() {
         }\
         #daily_actions {\
             float: left;\
+            padding-top: 5px;\
         }\
         #daily_actions span {\
             cursor: pointer;\
