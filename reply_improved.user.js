@@ -13,51 +13,70 @@
 
 (function () {
 
-/* 用户设置开始 */
+/* 用户设置(默认) */
+var DefaultOptions = {
+    animateSpeed: 500,           // 动画速度
+    openInNewtab: false,         // 链接是否在新标签页打开
+    promptColor: 'green',        // 查看原帖提示颜色
+    promptString: '|查看原帖|',  // 查看提示文字
+    removeMultiQuote: true,      // 删除多重引用的内容(仅保留最后一重)
+    autoSaveInterval: 30000,     // 自动保存数据间隔(毫秒)
+    keepTime: 3000,              // 状态显示保持时间
+    errorStatusColor: 'red',     // 错误状态颜色
+    normStatusColor: 'black',    // 正常状态颜色
+    maxTextareaLength: 16240,    // 文本框的最大输入长度
 
-var ReplyPopupTransp = 1;         // 回复框透明度
-var ReplyPopupBgColor = '#F4F9FB';// 回复框背景色
-var ReplyPopupWidth = '56%';      // 回复框宽度
-var TextInputHeight = '270px';    // 文本框高度
-var AnimateSpeed = 500;           // 动画速度
-var OpenInNewtab = false;         // 链接是否在新标签页打开
-var PromptColor = "green";        // 查看原帖提示颜色
-var PromptString = "|查看原帖|";  // 查看提示文字
-var RemoveMultiQuote = true;      // 删除多重引用的内容(仅保留最后一重)
-var AutoSaveInterval = 30000;     // 自动保存数据间隔(毫秒)
-var KeepTime = 3000;              // 状态显示保持时间
-var ErrorStatusColor = 'red';     // 错误状态颜色
-var NormStatusColor = 'black';    // 正常状态颜色
+    /* 快速回复框样式 */
+    replyPopupStyle: {
+        opacity: 1,                                          // 透明度
+        width: '56%',                                        // 宽度
+        fontSize: '1em',                                     // 字体大小
+        borderRadius: '5px',                                 // 边框圆角
+        backgroundColor: '#F4F9FB',                          // 背景颜色
+        border: '5px solid transparent',                     // 边框
+        boxShadow: '0 0 18px rgba(0, 0, 0, 0.4)',            // 框阴影
+        fontFamily: 'Verdana, Helvetica, sans-serif'         // 字体
+    },
 
-var UserStatusBoxStyle = {        // 状态框自定义样式
-    opacity: 0.8,                 // 状态框透明度
-    padding: '2px 5px',           // 状态框内边距
-    lineHeight: '2.0em',          // 状态框行距
-    borderRadius: '2px',          // 状态框圆角
-    backgroundColor: '#fffef9',   // 状态框背景色
-    border: '1px solid #cccccc'   // 状态框边框
+    /* 文本框样式 */
+    textAreaStyle: {
+        height: '270px',              // 高度
+        padding: '0.4em',             // 内边距
+        lineHeight: '1.6em',          // 行间距
+        border: '1px solid #ccc',     // 边框
+        backgroundColor: '#fefefe'    // 背景颜色
+    },
+
+    /* 状态框样式 */
+    statusBoxStyle: {
+        opacity: 0.8,                 // 透明度
+        padding: '2px 5px',           // 内边距
+        lineHeight: '2.0em',          // 行距
+        borderRadius: '2px',          // 边框圆角
+        backgroundColor: '#fffef9',   // 背景色
+        border: '1px solid #cccccc'   // 边框
+    },
+
+    /* 字数统计框样式 */
+    countBoxStyle: {
+        opacity: 0.6,                 // 透明度
+        fontWeight: 'bold',           // 字体粗细
+        padding: '2px 4px',           // 内边距
+        borderRadius: '5px',          // 边框圆角
+        backgroundColor: '#d3d7d4',   // 背景色
+        border: '1px solid #33a3dc'   // 边框
+    }
 };
 
-var UserCountBoxStyle = {         // 字数统计框样式
-    opacity: 0.6,                 // 字数统计框透明度
-    fontWeight: 'bold',           // 字体加粗
-    padding: '2px 4px',           // 字数统计框内边距
-    borderRadius: '5px',          // 字数统计框圆角
-    backgroundColor: '#d3d7d4',   // 状态框背景色
-    border: '1px solid #33a3dc'   // 字数统计框边框
-};
-
-/* 用户设置结束 */
-
-/* 文本区别的最大输入长度 */
-var MaxTextareaLength = 16240;
+/* 全局设置 */
+var GlobalOptions = loadOptions();
 
 /* 全局定时器 */
 var StatusKeepTimer = -1;
 var AutoSaveTimer = -1;
 
 /* 图片按钮地址 (普通地址或者Base64编码)*/
-var ImageURLs = {
+ImageURLs = {
     /* 快速回复按钮Base64编码 */
     reply: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAABZ0RVh0Q3JlYXRpb24gVGltZQAwNC8xMS8wOGGVBZQAAAAcdEVYdFNvZnR3YXJlAEFkb2JlIEZpcmV3b3JrcyBDUzQGstOgAAACSUlEQVQ4jdWPv08TYRjHP3e9X71eLR4ltZgAElIwRk3o4OLE4MBgnF0cTEyd+Bd0YPIvcHYxDgwurjiQwFAlRAZjQZpKoBQptNcf1/d6r4sktNakJC4+yZO8yZvv5/l8FS43+tOXdzLpaft1s9m81/GFZph64MRja3bMfFLaOywqfYEEMAWMDIAZmXn35sPcxCtVU4yJqXHiVxwaXpPdbyWA1ljq6lw/8K7v+5v9JCEER0dHvPm4hBeWuD0/A0DKuUXZ2yYMQ7Y3d7Gi5qralx1RFIWzs7OeLZfL7OzscNoukhp36QifUSvDg5kXjFoZgq4gNT6CV2ve7wcCoKpqzwZBQKvVotPpYMUUxuxZFueWAVicW2bMnkW3VIQQ2kCgoig9CxCGIbqhUat57J1ssLK1BMDK1hJ7JxvUax4RTQ20QTBV7b0TiUTQNI0rxnWOD0roVozvx+u8+/ycUvUTUkoqBx6arq4PZWiaJo7jMG09QnY19gse9apP4XCDetXnR8FDhvilr41nfxieAy9ONBollUrRbreRMkcxeM9ppUQQdFFVJQxDufllrZpbfVsuDFXZNE2SySSKomDbNtcaN+h2u9i2zcLCQg74ABxLKcVQhhctE4kEvu8jpcSyLIB9oCylFABDAwEMw8AwjB5zoAGI88xQlf82gw5fynCY+Q8N/wkwm82OAvFisZi4bOVkMpmYnJycAur5fP7nuWEHwHXdSjqdfiyEcIYB6rruua5bucgY2C2bzcZ/PyNAtO+7BXQB8vl8vT/7C2ss4WrplFZOAAAAAElFTkSuQmCC',
     /* 快速引用按钮Base64编码 */
@@ -75,6 +94,36 @@ var ImageURLs = {
     /* 不存在 */
     nonexist: ''
 };
+
+/* 函数类扩展：周期执行某个函数 (参考 Moontools)*/
+Function.prototype.periodical = function (periodical, bind, args) {
+    var self = this;
+    var callback = function () {
+        self.apply(bind, args || []);
+    };
+
+    return setInterval(callback, periodical);
+};
+
+/* sessionStorage操作函数 */
+function setValue(key, val) { sessionStorage.setItem(key, val); }
+function getValue(key, def) { return sessionStorage.getItem(key, def); }
+function delValue(key) { sessionStorage.removeItem(key); }
+
+/* 选项存储与加载 */
+function saveOptions(opt) {
+    if (opt === undefined)
+        return;
+
+    opt = $.extend({}, GlobalOptions, opt);
+    localStorage.setItem('rimopt', JSON.stringify(opt));
+}
+
+function loadOptions() {
+    var storedOptions = localStorage.getItem('rimopt', '');
+
+    return storedOptions ? JSON.parse(storedOptions) : DefaultOptions;
+}
 
 /* 返回相对地址 */
 function getRelativeURL(url) {
@@ -100,25 +149,10 @@ function getTopicID() {
     return topicID ? topicID[1] : '0';
 }
 
-/* 函数类扩展：周期执行某个函数 (参考 Moontools)*/
-Function.prototype.periodical = function (periodical, bind, args) {
-    var self = this;
-    var callback = function () {
-        self.apply(bind, args || []);
-    };
-
-    return setInterval(callback, periodical);
-};
-
-/* Storage操作函数 */
-function setValue(key, val) { window.sessionStorage.setItem(key, val); }
-function getValue(key, def) { return window.sessionStorage.getItem(key, def); }
-function delValue(key) { window.sessionStorage.removeItem(key); }
-
 /* 添加自定义的样式 */
 function addCustomizedCSS() {
     /* 添加到Head节点 */
-    $('<style type="text/css"></style>').appendTo('head').html('\
+    $('<style type="text/css"/>').appendTo('head').html('\
         .reply_button img, .panel img {\
             width: 15px;\
             height: 15px;\
@@ -127,24 +161,18 @@ function addCustomizedCSS() {
             vertical-align: middle;\
         }\
         .btn_reply { margin-left: 5px; }\
-        .btn_quote { margin-left: 8px; }\
+        .btn_quote { margin-left: 5px; }\
         .btn_close img { opacity: 0.3; }\
         #reply_container {\
             display: none;\
             position: fixed;\
-            font-size: 1em;\
-            border-radius: 5px;\
-            border: 5px solid transparent;\
-            box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);\
-            font-family: Verdana, Arial, Helvetica, sans-serif;\
         }\
         #reply_container.drag_container {\
             box-shadow: 0 0 36px rgba(0, 0, 0, 0.9);\
         }\
-        #reply_header_container { margin: 0 5px; }\
+        #reply_header_container { margin-bottom: 5px; }\
         #reply_subjectbar {\
             height: 27px;\
-            margin: 5px 0 10px;\
             position: relative;\
         }\
         .reply_input {\
@@ -172,21 +200,18 @@ function addCustomizedCSS() {
         }\
         #reply_panel_button .reply_button { margin: 0 3px; }\
         #reply_panel_container { margin: 0 5px; }\
+        .panel .label {\
+            margin-right: 5px;\
+            float: left;\
+        }\
         .panel img { margin-right: 5px; }\
-        .panel .label { margin-right: 5px; float: left; }\
         #reply_content_container {\
             position: relative;\
-            margin: 10px 5px 5px;\
+            margin-top: 5px;\
         }\
-        #reply_content {\
-            width: 100%;\
-            padding: 0.4em;\
-            line-height: 1.2em;\
-            border: 1px solid #ccc;\
-            background-color: #fefefe;\
-        }\
+        #reply_content { width: 100%; }\
         #reply_footer_container { \
-            margin: 5px 5px 0px;\
+            margin-top: 5px;\
             text-align: right;\
             display: none;\
             height: 25px;\
@@ -199,7 +224,7 @@ function addCustomizedCSS() {
             margin-left: 10px;\
             padding: 2px 12px;\
             border: 1px solid #c4c4c4;\
-            font-family: Verdana,Arial,Helvetica,sans-serif;\
+            font-family: Verdana, Helvetica, sans-serif;\
         }\
         .reply_action:hover {\
             border-radius: 3px;\
@@ -347,14 +372,18 @@ function processQuoteContent(value, quoteURL) {
     value = value.replace(rbegdupblank, '$1\n').replace(renddupblank, '\n\n$1\n');
 
     /* 删除多重引用内容 */
-    if (RemoveMultiQuote) value = value.replace(rmultiquote, '$1$2');
+    if (GlobalOptions.removeMultiQuote) 
+        value = value.replace(rmultiquote, '$1$2');
 
     /* 查找插入位置 */
     var insPos = value.indexOf('[/b]') + 4;
 
     /* 构造插入内容 */
-    var insContent = [ '[url=', getOrigURL(quoteURL), ',t=', (OpenInNewtab?'blank':'self'), 
-        '][color=', PromptColor, '][b]', PromptString, '/b][/color][/url]\n'
+    var insContent = [ 
+        '[url=', getOrigURL(quoteURL), ',t=',
+        GlobalOptions.openInNewtab ? 'blank' : 'self',
+        '][color=', GlobalOptions.promptColor, '][b]',
+        GlobalOptions.promptString, '[/b][/color][/url]\n'
     ].join('');
 
     /* 拼接内容 */
@@ -380,35 +409,21 @@ function showReplyPopup(ele, name) {
 
     /* 调整回复框高度 */
     var $replyContent = $replyContainer.find('#reply_content')
-        .css('height', TextInputHeight)
-        .attr('placeholder', '请输入回复');
+        .css(GlobalOptions.textAreaStyle).attr('placeholder', '请输入回复');
 
-    /* 设定回复框样式 */
-    $replyContainer.css({
-        opacity: ReplyPopupTransp,
-        backgroundColor: ReplyPopupBgColor,
-        width: function () {
-            var theWidth = parseFloat(ReplyPopupWidth);
-            var winWidth = $(window).width();
-
-            if (ReplyPopupWidth.slice(-1) == '%')  // 百分数据表示
-                return Math.min(theWidth / 100, 0.8) * winWidth;
-            else
-                return Math.min(theWidth, 0.8 * winWidth);
-        },
+    /* 扩展用户样式 */
+    var style = {
+        width: 'auto',
         left: function () { 
-            var theWidth = $(this).outerWidth();
-            var winWidth = $(window).width();
-
-            if (theWidth < winWidth / 2)
-                return winWidth / 2;
-            else
-                return 3.0 / 4 * (winWidth - theWidth);
+            return ($(window).width() - $(this).outerWidth()) / 4 * 3;
         },
         top: function () {
-            return ($(window).height() - $(this).outerHeight()) / 2;
+            return ($(window).height() - $(this).outerHeight()) / 3 * 2;
         }
-    });
+    };
+
+    style = $.extend({}, style, GlobalOptions.replyPopupStyle);
+    $replyContainer.css(style);
 
     /* 填充页面元素 */
     $replyContainer
@@ -422,7 +437,7 @@ function showReplyPopup(ele, name) {
         .end();
 
     /* 显示回复框 */
-    $replyContainer.slideDown(AnimateSpeed, function () {
+    $replyContainer.slideDown(GlobalOptions.animateSpeed, function () {
         $replyContainer.find('.reply_input').css({    // 微调回复主题框
             paddingLeft: function (index, oldValue) {
                 var offset = $replyContainer.find('.btn_send').outerWidth();
@@ -431,8 +446,12 @@ function showReplyPopup(ele, name) {
                 return (preOffset > offset) ? preOffset : preOffset + offset;
             },
             width: function (index, oldValue) {
-                var offset = $replyContainer.find('#reply_panel_button').width();
-                return $(this).parent('div').width() - offset - 20;
+                var $replyBtnPanel = $replyContainer.find('#reply_panel_button');
+
+                var btnNum = $replyBtnPanel.children().length;
+                var btnWidth = $replyBtnPanel.width() / btnNum;
+
+                return $(this).parent().width() - btnWidth * (1 + btnNum);
             }
         });
     });
@@ -467,9 +486,9 @@ function hideReplyPopup() {
     if ($replyContainer.is(':visible')) {
         $replyContainer
             .find('#reply_footer_container')
-                .slideUp(AnimateSpeed)
+                .slideUp(GlobalOptions.animateSpeed)
             .end()
-        .slideUp(AnimateSpeed);
+        .slideUp(GlobalOptions.animateSpeed);
     }
 }
 
@@ -560,7 +579,8 @@ function showNotify(content, box, style, append) {
         box.html(content);
 
     /* 设定样式并显示内容 */
-    box.css(style).fadeTo(AnimateSpeed, style.opacity || 1);
+    //box.css(style).fadeTo(GlobalOptions.animateSpeed, style.opacity || 1);
+    box.css(style).show();
 }
 
 /* 延迟隐藏通知 */
@@ -574,15 +594,16 @@ function delayHideNotify(box, keepTime, oldTimer) {
 
     /* 清空状态并隐藏 */
     return setTimeout(function () {
-        box.fadeOut(AnimateSpeed);
-        box.empty();
-    }, (keepTime||0) + AnimateSpeed);
+        box.fadeOut(GlobalOptions.animateSpeed, function() {
+            $(this).empty();
+        });
+    }, (keepTime||0) + GlobalOptions.animateSpeed);
 }
 
 /* 显示状态信息 */
 function showStatus(statusText, statusBox, style, keepTime, append) {
     /* 扩展用户定义样式 */
-    style = $.extend({}, style, UserStatusBoxStyle);
+    style = $.extend({}, style, GlobalOptions.statusBoxStyle);
 
     showNotify(statusText, statusBox, style, append);
 
@@ -597,18 +618,18 @@ function showCharCount(ta, cntBox) {
         ta = $(ta);
 
     /* 统计剩余字数 */
-    var remain = MaxTextareaLength - ta.val().length;
+    var remain = GlobalOptions.maxTextareaLength - ta.val().length;
     var status;
 
     /* 显示在右下方 */
     var style = setAbsPosition(cntBox, ta, 'right', 'bottom');
-    style = $.extend({}, style, UserCountBoxStyle);
+    style = $.extend({}, style, GlobalOptions.countBoxStyle);
 
     if (remain >= 0)
-        status = '<font color="' + NormStatusColor + '">' +
+        status = '<font color="' + GlobalOptions.normStatusColor + '">' +
             remain + '字' + '</font>';
     else
-        status = '<font color="' + ErrorStatusColor + '">' +
+        status = '<font color="' + GlobalOptions.errorStatusColor + '">' +
             remain + '字' + '</font>';
 
     showNotify(status, cntBox, style);
@@ -666,22 +687,22 @@ function sendMessages(user, title, message, ta, statusBox) {
         var status, style;
 
         if (data.indexOf('操作成功') != -1) // 发送成功
-            status = '<font color="' + NormStatusColor +
+            status = '<font color="' + GlobalOptions.normStatusColor +
                 '">✔ 消息成功发送给"' + user + '"</font>';
         else
-            status = '<font color="' + ErrorStatusColor +
+            status = '<font color="' + GlobalOptions.errorStatusColor +
                 '">✘ 消息未能发送给"' + user + '"</font>';
 
         /* 显示在正中间 */
         style = setAbsPosition(statusBox, ta, 'middle', 'middle');
-        showStatus(status, statusBox, style, KeepTime, true);
+        showStatus(status, statusBox, style, GlobalOptions.keepTime, true);
     }).error(function () { // 如果发生错误
         /* 显示在正中间 */
         var style = setAbsPosition(statusBox, ta, 'middle', 'middle');
-        var status = '<font color="' + ErrorStatusColor +
+        var status = '<font color="' + GlobalOptions.errorStatusColor +
                 '">✘ 消息发送给"' + user + '"过程中发生错误</font>';
 
-        showStatus(status, statusBox, style, KeepTime, true);
+        showStatus(status, statusBox, style, GlobalOptions.keepTime, true);
     });
 }
 
@@ -707,12 +728,12 @@ function saveData(ta, auto, statusBox) {
     if (statusBox === undefined)
         return;
 
-    status = '<font color="' + NormStatusColor + '">' 
+    status = '<font color="' + GlobalOptions.normStatusColor + '">' 
         + status + '</font>';
 
     /* 显示在左下方 */
     var style = setAbsPosition(statusBox, ta, 'left', 'bottom');
-    showStatus(status, statusBox, style, KeepTime);
+    showStatus(status, statusBox, style, GlobalOptions.keepTime);
 }
 
 /* 恢复文本框数据 */
@@ -737,7 +758,7 @@ function recoverData(ta, statusBox) {
 
     /* 显示在左下方 */
     var style = setAbsPosition(statusBox, ta, 'left', 'bottom');
-    showStatus(status, statusBox, style, KeepTime);
+    showStatus(status, statusBox, style, GlobalOptions.keepTime);
 }
 
 /* 清除并重置周期定时器 */
@@ -843,16 +864,18 @@ function main() {
             var remain = showCharCount($replyContent, $('#reply_cnt_box'));
 
             /* 已经输入数据 */
-            if (remain != MaxTextareaLength)　{
+            if (remain != GlobalOptions.maxTextareaLength)　{
                 /* 自动备份数据: 未开始自动备份 */
                 if (AutoSaveTimer == -1) {
-                    AutoSaveTimer = saveData.periodical(AutoSaveInterval, 
-                        window, [$replyContent, true, $('#reply_status_box')]);
+                    AutoSaveTimer = saveData.periodical(
+                        GlobalOptions.autoSaveInterval, window,
+                        [$replyContent, true, $('#reply_status_box')]
+                    );
                 }
             }
 
             /* 显示回复框底部 */
-            $('#reply_footer_container').slideDown(AnimateSpeed);
+            $('#reply_footer_container').slideDown(GlobalOptions.animateSpeed);
         })
         .live('blur', function () {
             delayHideNotify($('#reply_cnt_box'), 0);  // 隐藏字数统计框 
@@ -907,7 +930,9 @@ function main() {
     $('#reply_status_box').live('mouseover', function () {
         clearTimeout(StatusKeepTimer);
     }).live('mouseout', function () { // 移出后延迟隐藏
-        StatusKeepTimer = delayHideNotify(this, KeepTime, StatusKeepTimer);
+        StatusKeepTimer = delayHideNotify(
+            this, GlobalOptions.keepTime, StatusKeepTimer
+        );
     });
 
     /* 拖拽对象 */
