@@ -28,6 +28,7 @@ var DefaultOptions = {
     errorStatusColor: 'red',     // 错误状态颜色
     normStatusColor: 'black',    // 正常状态颜色
     maxTextareaLength: 16240,    // 文本框的最大输入长度(字节数)
+    maxSubjectLegth: 100,        // 主题框的最大输入长度(字节数)
 
     /* 快速回复框样式 */
     replyPopupStyle: {
@@ -490,8 +491,10 @@ function showReplyPopup(ele, name) {
         .find('.reply_button img')
             .attr('src', function () { return getButtonURL(this); })  // 设定按钮地址
         .end()
-        .find('#reply_subject').val('Re: ' + PageArgs.title).end()  // 设定主题
-        .find('#reply_send')
+        .find('#reply_subject')  // 设定主题
+            .val('Re: ' + PageArgs.title)
+        .end()
+        .find('#reply_send') // 设定提示
             .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
         .end();
 
@@ -934,7 +937,9 @@ function postReply()
     $replyContainer = $('#reply_container');
     $replyContent = $replyContainer.find('#reply_content');
 
-    content = '\n' + getRelativeURL($replyContent.val());
+    content = getRelativeURL(
+        $replyContent.val().replace(/^(\n*)/, '\n').replace(/(\n*)$/g, '')
+    );
 
     face = $replyContainer.find('.btn_expression img').attr('src');
     face = face.replace(/(.*\/)/, '');
@@ -1018,6 +1023,15 @@ function handleEvents() {
         insertIntoTextarea(insertText, '#reply_content');
     });
 
+    /* 限制主题输入框的输入字数上限 */
+    //$('#reply_subject').live('input', function () {
+        //console.log(this.value);
+        //if (this.value.bytes() > Options.maxSubjectLength) {
+            //console.log(this.value.bytes());
+            //return false;
+        //}
+    //});
+
     /* 捕获文本框的各种事件 */
     $('#reply_content').live('input focus', function () {  // 动态统计文本框字数
         var $replyContainer, $replyContent, $actionBtn, remain;
@@ -1051,6 +1065,12 @@ function handleEvents() {
         );
     }).live('blur', function () {
         delayHideNotify($('#reply_cnt_box'), 0);  // 隐藏字数统计框 
+    });
+
+    /* 捕获Ctrl+Enter键回复 */
+    $('#reply_content').live('keyup', function(evt) {
+        if (evt.ctrlKey && evt.keyCode == 13)
+            postReply();
     });
 
     /* 备份与恢复等日常操作 */
