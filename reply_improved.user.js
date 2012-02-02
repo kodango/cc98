@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8
+// @version        0.8.1
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -27,7 +27,7 @@ var DefaultOptions = {
     keepTime: 3000,              // 状态显示保持时间
     errorStatusColor: 'red',     // 错误状态颜色
     normStatusColor: 'black',    // 正常状态颜色
-    maxTextareaLength: 16240,    // 文本框的最大输入长度
+    maxTextareaLength: 16240,    // 文本框的最大输入长度(字节数)
 
     /* 快速回复框样式 */
     replyPopupStyle: {
@@ -110,6 +110,20 @@ ImageURLs = {
     /* 不存在 */
     nonexist: ''
 };
+
+/* 字符串扩展：求字符串的总字节数 */
+String.prototype.bytes = function () {
+    var ret = 0;
+
+    for (var i = 0, len = this.length; i < len; i++) {
+        if (this.charCodeAt(i) < 0 || this.charCodeAt(i) > 255)
+            ret += 2;
+        else
+            ret += 1;
+    }
+
+    return ret;
+} 
 
 /* 函数类扩展：周期执行某个函数 (参考 Moontools)*/
 Function.prototype.periodical = function (periodical, bind, args) {
@@ -672,7 +686,7 @@ function showCharCount(ta, cntBox) {
     var remain, style, type;
 
     /* 统计剩余字数 */
-    remain = Options.maxTextareaLength - ta.val().length;
+    remain = Options.maxTextareaLength - ta.val().bytes();
 
     /* 显示在右下方 */
     style = setAbsPosition(cntBox, ta, 'right', 'bottom');
