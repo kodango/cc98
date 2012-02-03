@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.3
+// @version        0.8.4
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -873,12 +873,15 @@ function triggerButtonClick(ele) {
 /* Post提交成功后的回调函数 */
 function postOnSuccess(data)
 {
-    var $popup, $content, $statusBox;
-    var status, style;
+    var $popup, $content, $statusBox, $errList;
+    var status, style, errNum;
     
     $popup = $('#rim_popup');
     $content = $popup.find('#rim_content');
     $statusBox = $popup.find('#rim_statusbox');
+
+    /* 清空旧状态信息 */
+    $statusBox.empty();
 
     /* 显示在正中间 */
     style = setAbsPosition($statusBox, $content, 'middle', 'middle');
@@ -886,9 +889,9 @@ function postOnSuccess(data)
     /* 回复成功 */
     if (data.indexOf('本页面将在3秒后自动返回') != -1) {
         if (Opts.reloadTimeout == 0)
-            status = '回复帖子成功, 页面将会立即刷新';
+            status = '✔ 回复帖子成功, 页面将会立即刷新';
         else
-            status = '回复帖子成功，将会在' + Opts.reloadTimeout +
+            status = '✔ 回复帖子成功，将会在' + Opts.reloadTimeout +
                 '秒后自动刷新';
 
         showStatus(status, $statusBox, style, Opts.keepTime, true);
@@ -909,15 +912,18 @@ function postOnSuccess(data)
     }
     
     /* 获取错误信息 */
-    queryHTMLBySelector(data, 'table li').each(function() {
-        status = this.firstChild.nodeValue(); // 错误文本内容
+    $errList = queryHTMLBySelector(data, 'table li');
+    errNum = $errList.length;
+
+    $errList.each(function() {
+        status = this.firstChild.nodeValue; // 错误文本内容
         status = status.replace(/^\s*|\s*$/g, ''); // 去除首尾空白
 
-        showStatus(status, $statusBox, style, Opts.keepTime, 
+        showStatus('✘ ' + status, $statusBox, style, Opts.keepTime, 
             true, 'error');
 
         /* 10秒间隔内回复错误 */
-        if (status.indexof('本论坛限制发贴距离时间为10秒') != -1) {
+        if (status.indexOf('本论坛限制发贴距离时间为10秒') != -1) {
             var $submitBtn = $popup.find('#btn_submit')
             var value = $submitBtn.val();
 
@@ -934,7 +940,7 @@ function postOnSuccess(data)
             setTimeout(function() {
                 $submitBtn.val(value);
 
-                if (Opts.autoReply) // 自动回复
+                if (Opts.autoReply && errNum == 1) // 自动回复
                     postReply();
                 else // 手动回复
                     $submitBtn.prop('disabled', false);
