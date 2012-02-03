@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.1
+// @version        0.8.2
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -31,7 +31,7 @@ var DefaultOptions = {
     maxSubjectLegth: 100,        // 主题框的最大输入长度(字节数)
 
     /* 快速回复框样式 */
-    replyPopupStyle: {
+    popupStyle: {
         opacity: 1,                                    // 透明度
         width: '56%',                                  // 宽度
         fontSize: '1em',                               // 字体大小
@@ -73,7 +73,9 @@ var DefaultOptions = {
 };
 
 /* 全局设置 */
-var Options;
+var Opts;
+/* 与本主题相关的参数字典 */
+var Args = null;
 
 /* 全局定时器 */
 var StatusTimer = -1;
@@ -83,11 +85,6 @@ var AutoSaveTimer = -1;
 var DragObject = null;
 /* 鼠标与拖拽对象之间的偏移 */
 var MouseOffset = null;
-
-/* 页面相关的参数字典 */
-var PageArgs = null;
-/* 记录表单Post部分内容 */
-var PartialFormData = '';
 
 /* 假设一个大数作为帖子的最后一页 */
 var LastPageN = 32767;
@@ -105,9 +102,9 @@ ImageURLs = {
     /* 文件上传按钮Base64编码 */
     upload: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACUUlEQVQ4jY2Sz0tUURTHP/fe5+iY5ZvU/IWNmqVFyfQnWBtpU9CmNmEL97ayhSBY2yhauGoVbiOCNBDqQdDuQdI6yMnSnObND3+M87zv3ddinMFBiw5cOAfO93N+XcFfLP1q1CbwHYRcRTXcT97+UjguTxwrXhqzMfuOlKQAjGEFGRtL3nCOQI4A0u9v2pjAkUqmzgx1A5D5uoEJzQrSGktef1MHkXXi5XEbox0g1dqVINbUgNVg0dqVAEhhtJNeHrcPa6y68oHvICpt59MlTja3o0uafLpYzUgR4QBXj4zguu5TYAoAP0OHN8fZwRjlckRmXfPZPMT3/ep7Njk5+aAGcF23Xyn17fy5Syil2N9eI/fpLj29jfi+wctqEtc+oHVAqbTL28XX7OxsD0xPT69WdzDbdroDpRSWJVBKoMuKQkax7Sl0WRFrtIjHY1hWjL6+fkql0iyAcF3XVkrlq9XXN37R1uLzc3Gi/jq9T4g3SS4MDbC1vcXCwguKxWLCAqZaTpxCKQVAT3cXAIN3HKIoIooijDH0GoPWAfv7mlhDjM7OHrLZ7JRwXTcfhJEthUAIUdnKgcgYQxiGhCbEhAd+LQ7J5/MFS2ttX74yihACATXIsV8U2NSbaKVJxpPMP5+3rVwuB8DSu49IJVFSVmDiAHbo2hdHkjz+MQft8Hj4EZ7nYXmeB0Dmd46R4SRKSaSUSFnpiAMYwN7eHjvlXdZ2vhOakFwuVwE0x5uYuHfrv0ZYGHpZcQxorREzMzP5IAjsIAgIgqC2KGNM7Qr/sMIfkR8a8weYdtgAAAAASUVORK5CYII%3D',
     /* 心情按钮 */
-    expression: 'face/face7.gif',
+    expr: 'face/face7.gif',
     /* 表情按钮 */
-    emotion: 'emot/simpleemot/emot88.gif',
+    emot: 'emot/simpleemot/emot88.gif',
     /* 不存在 */
     nonexist: ''
 };
@@ -140,12 +137,22 @@ function setValue(key, val) { sessionStorage.setItem(key, val); }
 function getValue(key, def) { return sessionStorage.getItem(key, def); }
 function delValue(key) { sessionStorage.removeItem(key); }
 
+/* URL信息编码与解码函数 */
+function encode(str) { return encodeURIComponent(str); }
+function decode(str) { return decodeURIComponent(str); }
+
+/* 功能提示函数 */
+function unimplement()
+{
+    alert('该功能还未实现');
+}
+
 /* 选项存储与加载 */
 function saveOptions(opt) {
     if (opt === undefined)
         return;
 
-    opt = $.extend({}, Options, opt);
+    opt = $.extend({}, Opts, opt);
     localStorage.setItem('rimopt', JSON.stringify(opt));
 }
 
@@ -174,8 +181,8 @@ function getLastPageURL(url)
         .replace(/#.*/, "#bottom");
 }
 
-/* 解析获得与本页面相关的参数 */
-function parsePageArgs() {
+/* 解析获得与本主题相关的参数 */
+function parseTopicArgs() {
     var ret = {}, args, name, val, cookie, match;
 
     /* 帖子楼层数数 */
@@ -209,111 +216,102 @@ function parsePageArgs() {
 function addCustomizedCSS() {
     /* 添加到Head节点 */
     $('<style type="text/css"/>').appendTo('head').html('\
-        .reply_button img, .panel img {\
+        .rim_btn {\
+            cursor: pointer;\
+            text-decoration: none;\
+        }\
+        .rim_btn:not(:last-of-type) {\
+            margin-right: 5px;\
+        }\
+        .rim_btn img, .rim_panel img {\
             width: 15px;\
             height: 15px;\
             border: none;\
-            cursor: pointer;\
             vertical-align: middle;\
         }\
-        .btn_reply, .btn_quote {\
-            margin-left: 5px;\
-        }\
-        .btn_close img {\
-            opacity: 0.3;\
-        }\
-        #reply_container {\
+        #rim_popup {\
             display: none;\
             position: fixed;\
         }\
-        #reply_container.dragged {\
+        #rim_popup.dragged {\
             box-shadow: 0 0 36px rgba(0, 0, 0, 0.9);\
         }\
-        #reply_header_container {\
+        #rim_header {\
             margin-bottom: 10px;\
-        }\
-        #reply_subjectbar {\
-            height: 27px;\
             position: relative;\
         }\
-        .reply_input {\
+        .rim_input {\
             width: 100%;\
             height: 27px;\
-            padding: 4px;\
+            padding: 2px;\
             background-color: #fefefe;\
             border: 1px solid #ccc;\
         }\
-        .btn_send, #reply_panel_button {\
+        .btn_send, #rim_toolbar {\
+            top: 0px;\
             position: absolute;\
             background-color: #eee;\
             border: 1px solid #ccc;\
         }\
         .btn_send {\
             left: 0px;\
-            top: 0px;\
             padding: 5px;\
         }\
-        #reply_panel_button {\
-            top: 0px;\
+        #rim_toolbar {\
             right: 0px;\
             padding: 4px;\
         }\
-        #reply_panel_button .reply_button {\
-            margin: 0 3px;\
+        .btn_close {\
+            opacity: 0.3;\
         }\
-        #reply_panel_container {\
+        #rim_panelbar {\
             margin: 0 5px;\
         }\
-        .panel .label {\
-            margin-right: 5px;\
-            float: left;\
-        }\
-        .panel img {\
+        .rim_panel img {\
             margin-right: 5px;\
         }\
-        #reply_content_container {\
+        #rim_contentbox {\
             position: relative;\
             margin-top: 10px;\
         }\
-        #reply_content { \
+        #rim_content { \
             width: 100%;\
         }\
-        #reply_footer_container { \
+        #rim_footer { \
             margin-top: 5px;\
             text-align: right;\
-            display: none;\
             height: 25px;\
         }\
-        #reply_actions {\
+        #rim_actbar {\
             padding-right: 8px;\
         }\
-        .reply_action {\
-            cursor: pointer;\
+        .rim_action {\
             font-size: 1em;\
+            cursor: pointer;\
             font-weight: bold;\
-            border-radius: 5px;\
             margin-left: 10px;\
             padding: 2px 10px;\
+            border-radius: 5px;\
             border: 1px solid #c4c4c4;\
-            font-family: Verdana, Helvetica, sans-serif;\
             box-shadow: 0 0 3px rgba(120, 80, 100, 0.4);\
+            font-family: Verdana, Helvetica, sans-serif;\
         }\
-        #daily_actions {\
+        #rim_opbar {\
             float: left;\
             padding-top: 5px;\
         }\
-        #daily_actions span {\
+        #rim_opbar span {\
             cursor: pointer;\
             font-size: 0.9em;\
             padding: 2px 8px;\
             border-right: 1px solid #999;\
         }\
-        #reply_status_box,\
-        #reply_cnt_box {\
+        #rim_statusbox,\
+        #rim_cntbox {\
             display: none;\
             position: absolute;\
         }\
-        #reply_status_box font {\
+        #rim_statusbox font {\
             display: block;\
         }\
         .hidden {\
@@ -323,9 +321,10 @@ function addCustomizedCSS() {
 }
 
 /* 返回指定按钮的名称 */
-function getButtonName(ele) {
+function getBtnName(ele) {
     /* 获取按钮对象 */
-    var $btn = (ele.tagName.toLowerCase() == 'a') ? $(ele) : $(ele).parent('a');
+    var $btn = (ele.tagName.toLowerCase() == 'a') 
+        ? $(ele) : $(ele).parent('a');
     var name = $btn.attr('id') || $btn.attr('class');
 
     /* 获取按钮名称 */
@@ -336,97 +335,97 @@ function getButtonName(ele) {
 }
  
 /* 返回指定按钮的图片地址 */
-function getButtonURL(ele) {
-    return ImageURLs[getButtonName(ele)];
+function getBtnURL(ele) {
+    return ImageURLs[getBtnName(ele)];
 }
 
 /* 创建快速回复以及快速引用按钮 */
-function createReplyButtons() {
+function createReplyBtns() {
     var html = [
-        '<a class="reply_button btn_reply" title="快速回复">',  // 快速回复按钮
+        '<a class="rim_btn btn_reply" title="快速回复">',  // 快速回复按钮
         '<img alt="快速回复" src=""/>',
         '</a>',
 
-        '<a class="reply_button btn_quote" title="快速引用">',  // 快速引用按钮
+        '<a class="rim_btn btn_quote" title="快速引用">',  // 快速引用按钮
         '<img alt="快速引用" src=""/>',
         '</a>'
     ].join('');
 
     $('img[src$="message.gif"]').closest('td')                  // 查找插入位置
         .append(html)
-        .find('.reply_button img').attr('src', function () {    // 设定按钮的地址
-            return getButtonURL(this); 
+        .find('.rim_btn img').attr('src', function () {    // 设定按钮的地址
+            return getBtnURL(this); 
         });
 }
 
 /* 创建快速回复弹出窗口 */
 function createReplyPopup() {
-    var $replyContainer = $('#reply_container');
+    var $popup = $('#rim_popup');
 
     /* 若已经添加到文档中 */
-    if ($replyContainer.length != 0)
-        return $replyContainer;
+    if ($popup.length != 0)
+        return $popup;
 
     /* 创建回复框容器DIV */
-    $replyContainer = $('<div id="reply_container"/>').appendTo('body');
+    $popup = $('<div id="rim_popup"/>').appendTo('body');
 
     /* 填充回复框界面骨架 */
-    $replyContainer.html([
-        '<div id="reply_header_container">',   // 回复框头部
-        '<div id="reply_subjectbar">',  // 回复框主题栏
-        '<input type="text" id="reply_subject" class="reply_input"/>',  // 回复框主题
-        '<input type="text" id="reply_send" class="reply_input hidden"/>',  // 群发信息输入框
-        '<a class="reply_button btn_send">',  // 群发信息
+    $popup.html([
+        '<div id="rim_header">',   // 回复框头部
+        '<div id="rim_subjectbar">',  // 回复框主题栏
+        '<input type="text" id="rim_subject" class="rim_input"/>',  // 回复框主题
+        '<input type="text" id="rim_sms" class="rim_input hidden"/>',  // 群发信息输入框
+        '<a class="rim_btn btn_send">',  // 群发信息
         '<img alt="点击群发信息"/>',
         '</a>',
-        '<span id="reply_panel_button">',  // 回复面板按钮
-        '<a class="reply_button btn_expression" title="发帖心情">',  // 发帖心情按钮
+        '</div>',
+        '<div id="rim_toolbar">',  // 回复面板按钮
+        '<a class="rim_btn btn_expr" title="发帖心情">',  // 发帖心情按钮
         '<img alt="发帖心情"/>',
         '</a>',
-        '<a class="reply_button btn_emotion" title="插入表情">',  // 插入表情按钮
+        '<a class="rim_btn btn_emot" title="插入表情">',  // 插入表情按钮
         '<img alt="插入表情"/>',
         '</a>',
-        '<a class="reply_button btn_upload" title="插入表情">',  // 上传文件按钮
+        '<a class="rim_btn btn_upload" title="插入表情">',  // 上传文件按钮
         '<img alt="上传文件"/>',
         '</a>',
-        '<a class="reply_button btn_close" title="关闭">',  // 回复框关闭按钮
+        '<a class="rim_btn btn_close" title="关闭">',  // 回复框关闭按钮
         '<img alt="关闭"/>',
         '</a>',
-        '</span>',
         '</div>',
         '</div>',
 
-        '<div id="reply_panel_container">',  // 回复框面板
-        '<div class="panel hidden" id="expression_panel"/>',  // 心情面板
-        '<div class="panel hidden" id="emotion_panel"/>',  // 表情面板
-        '<div class="panel hidden" id="upload_panel"/>',  // 上传面板
+        '<div id="rim_panelbar">',  // 回复框面板
+        '<div class="rim_panel hidden" id="expr_panel"/>',  // 心情面板
+        '<div class="rim_panel hidden" id="emot_panel"/>',  // 表情面板
+        '<div class="rim_panel hidden" id="upload_panel"/>',  // 上传面板
         '</div>',
 
-        '<div id="reply_content_container">',  // 回复框内容
-        '<textarea id="reply_content" name="reply_content"/>',  // 回复输入框
-        '<div id="reply_cnt_box"/>',  // 字数统计
-        '<div id="reply_status_box"/>',  // 字数统计
+        '<div id="rim_contentbox">',  // 回复框内容
+        '<textarea id="rim_content"/>',  // 回复输入框
+        '<div id="rim_cntbox"/>',  // 字数统计
+        '<div id="rim_statusbox"/>',  // 字数统计
         '</div>',
 
-        '<div id="reply_footer_container">',  // 回复框尾部
-        '<div id="daily_actions">',
+        '<div id="rim_footer">',  // 回复框尾部
+        '<div id="rim_opbar">',   // 日常操作栏
         '<span id="btn_save">保存数据</span>',     // 保存数据
         '<span id="btn_recover">恢复数据</span>',  // 恢复数据
         '<span id="btn_instime">插入时间</span>',  // 插入时间
         '</div>',
-        '<div id="reply_actions">',
-        '<input type="button" id="btn_submit" class="reply_action" value="回复"/>',  // 回复
-        '<input type="button" id="btn_preview" class="reply_action" value="预览"/>',  // 预览
-        '<input type="button" id="btn_cancel" class="reply_action" value="退出"/>',   // 退出
+        '<div id="rim_actbar">',  // 回复动作栏
+        '<input type="button" id="btn_submit" class="rim_action" value="回复"/>',  // 回复
+        '<input type="button" id="btn_preview" class="rim_action" value="预览"/>',  // 预览
+        '<input type="button" id="btn_cancel" class="rim_action" value="退出"/>',   // 退出
         '</div>',
         '</div>'
     ].join(''));
 
-    return $replyContainer;
+    return $popup;
 }
 
 /* 处理引用的内容 */
-function processQuoteContent(value) {
+function processQuoteContent(val) {
     /* 正则表达式定义 */
     var rmultiquote = 
         /(\[quotex?\][\s\S]*?)\[quotex?\][\s\S]*\[\/quotex?\]([\s\S]*?\[\/quotex?\])/gi;
@@ -438,39 +437,48 @@ function processQuoteContent(value) {
     var insPos, insContent;
 
     /* 删除多余的空行 */
-    value = value.replace(rbegdupblank, '$1\n').replace(renddupblank, '\n\n$1\n');
+    val = val.replace(rbegdupblank, '$1\n')
+        .replace(renddupblank, '\n\n$1\n');
 
     /* 删除多重引用内容 */
-    if (Options.removeMultiQuote) 
-        value = value.replace(rmultiquote, '$1$2');
+    if (Opts.removeMultiQuote) 
+        val = val.replace(rmultiquote, '$1$2');
 
     /* 查找插入位置 */
-    insPos = value.indexOf('[/b]') + 4;
+    insPos = val.indexOf('[/b]') + 4;
 
     /* 构造插入内容 */
     insContent = [ 
-        '[url=', PageArgs.quote, ',t=', Options.openInNewtab ? 'blank' : 'self',
-        '][color=', Options.promptColor, '][b]', Options.promptString, 
+        '[url=', 
+        Args.quote, 
+        ',t=', 
+        Opts.openInNewtab ? 'blank' : 'self',
+        '][color=', 
+        Opts.promptColor, 
+        '][b]', 
+        Opts.promptString, 
         '[/b][/color][/url]\n'
     ].join('');
 
     /* 拼接内容 */
-    return value.substring(0, insPos) + insContent + value.substring(insPos)
-        .replace(remotubb, "[noubb]$1[/noubb]")  // 不解释 [em**] 标签
+    return val.substring(0, insPos) + insContent + val.substring(insPos)
+        .replace(remotubb, "[noubb]$1[/noubb]")  // 不解析[em**] 标签
         .replace(rupldubb, "$1,1$3");  // 不自动展开图片
 }
 
 /* 动态显示回复文本框 */
 function showReplyPopup(ele, name) {
-    var $replyContainer, $replyContent, $btn;
+    var $popup, $content, $btn;
     var quoteURL, style;
     
-    $replyContainer = createReplyPopup();
+    $popup = createReplyPopup();
     $btn = $(ele);
 
-    /* 调整回复框高度 */
-    $replyContent = $replyContainer.find('#reply_content').css(Options.textAreaStyle)
-        .attr('placeholder', '请输入回复内容, 最多可输入' + Options.maxTextareaLength + '字');
+    /* 设置文本框样式和点位文字 */
+    $content = $popup.find('#rim_content')
+        .css(Opts.textAreaStyle)
+        .attr('placeholder', '请输入回复内容, 最多可输入' + 
+            Opts.maxTextareaLength + '字');
 
     /* 扩展用户样式 */
     style = {
@@ -483,43 +491,45 @@ function showReplyPopup(ele, name) {
         }
     };
 
-    style = $.extend({}, style, Options.replyPopupStyle);
-    $replyContainer.css(style);
+    style = $.extend({}, style, Opts.popupStyle);
+    $popup.css(style);
 
-    /* 填充页面元素 */
-    $replyContainer
-        .find('.reply_button img')
-            .attr('src', function () { return getButtonURL(this); })  // 设定按钮地址
+    /* 动态填充快速回复框内容 */
+    $popup
+        .find('.rim_btn img')
+            .attr('src', function () {  // 设定按钮地址
+                return getBtnURL(this); 
+            })
         .end()
-        .find('#reply_subject')  // 设定主题
-            .val('Re: ' + PageArgs.title)
+        .find('#rim_subject')  // 设定主题
+            .val('Re: ' + Args.title)
         .end()
-        .find('#reply_send') // 设定提示
+        .find('#rim_sms') // 设定短消息栏的点位内容
             .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
         .end();
 
     /* 显示回复框 */
-    $replyContainer.slideDown(Options.animateSpeed, function () {
-        $replyContainer.find('.reply_input').css({    // 微调回复主题框
+    $popup.slideDown(Opts.animateSpeed, function () {
+        $popup.find('.rim_input').css({    // 微调主题框
             paddingLeft: function (index, oldValue) {
-                var offset = $replyContainer.find('.btn_send').outerWidth();
+                var offset = $popup.find('.btn_send').outerWidth();
                 var preOffset = parseFloat(oldValue) || 0;
                 
                 return (preOffset > offset) ? preOffset : preOffset + offset;
             },
             width: function (index, oldValue) {
-                var $replyBtnPanel = $replyContainer.find('#reply_panel_button');
-                var btnNum = $replyBtnPanel.children().length;
-                var btnWidth = $replyBtnPanel.width() / btnNum;
+                var $replyToolbar = $popup.find('#rim_toolbar');
+                var btnNum = $replyToolbar.children().length;
+                var btnWidth = $replyToolbar.width() / btnNum;
 
                 return $(this).parent().width() - btnWidth * (1 + btnNum);
             }
         });
     });
 
-    /* 找到引用的地址 */
+    /* 找到帖子引用地址 */
     quoteURL = $btn.siblings().filter('a[href*="reannounce.asp"]').attr('href');
-    PageArgs.quote = getOrigURL(quoteURL);
+    Args.quote = getOrigURL(quoteURL);
 
     /* 如果是快速引用类型 */
     if (quoteURL && name == 'quote') {
@@ -530,39 +540,33 @@ function showReplyPopup(ele, name) {
             var value = $('<div>').append(data.replace(rscript, ''))
                 .find('textarea#content').val();
 
-            $replyContent.val(processQuoteContent(value));
+            $content.val(processQuoteContent(value));
         });
     }
 
-    return $replyContainer;
+    return $popup;
 }
 
 /* 隐藏快速回复框 */
 function hideReplyPopup() {
-    var $replyContainer = $('#reply_container');
+    var $popup = $('#rim_popup');
 
-    if ($replyContainer.is(':hidden'))
+    if ($popup.is(':hidden'))
         return;
 
     /* 清除旧的定时器 */
     clearIntervalTimer();
 
     /* 退出前备份数据 */
-    saveData($replyContainer.find('#reply_content'), true);
+    saveData($popup.find('#rim_content'), true);
 
-    $replyContainer
-        .find('#reply_footer_container')
-            .slideUp(Options.animateSpeed)
-        .end()
-    .slideUp(Options.animateSpeed);
+    $popup.slideUp(Opts.animateSpeed);
 }
 
 /* 创建表情面板 */
 function createEmotPanel() {
     var arr = new Array();
     var html = '<img src="emot/simpleemot/emot%n%.gif" alt="[em%n%]">';
-
-    arr.push('<span class="label">插入表情:</span>');
 
     for (var i = 0; i <= 90; i++) {
         if (i >= 38 && i <= 70)   // 过滤不常用表情
@@ -579,8 +583,6 @@ function createExprPanel() {
     var arr = new Array();
     var html = '<img src="face/face%n%.gif" alt="face%n%">';
 
-    arr.push('<span class="label">选择心情:</span>');
-
     for (var i = 1; i <= 22; i++)
         arr.push(html.replace(/%n%/g, i));
 
@@ -592,7 +594,7 @@ function createUpldPanel() {
     return [
         '<iframe width="100%" scrolling="no" height="24" frameborder="0" ',
         'id="uploadframe" src="saveannounce_upload.asp?boardid=',
-        PageArgs.boardid,
+        Args.boardid,
         '" name="uploadframe"></iframe>'
     ].join('');
 }
@@ -602,10 +604,10 @@ function createReplyPanel(name) {
     var html;
 
     switch (name) {
-        case 'emotion':    // 表情面板
+        case 'emot':    // 表情面板
             html = createEmotPanel();
             break;
-        case 'expression': // 心情面板
+        case 'expr': // 心情面板
             html = createExprPanel();
             break;
         case 'upload':     // 上传面板
@@ -624,9 +626,8 @@ function toggleReplyPanel(name) {
     var $panel = $('#' + name + '_panel');
 
     /* 若面板未创建则填充面板元素 */
-    if ($panel.is(':empty')) {
+    if ($panel.is(':empty'))
         $panel.html(createReplyPanel(name));
-    }
 
     /* 控制面板的显示与隐藏 */
     $panel.siblings().addClass('hidden');
@@ -634,21 +635,21 @@ function toggleReplyPanel(name) {
 }
 
 /* 显示通知信息 */
-function showNotify(content, box, style, type, append) {
+function showNotify(msg, box, style, type, append) {
     if (!(box instanceof jQuery))
         box = $(box);
 
     /* 状态类型：错误或者正常 */
     type = (type || 'norm') + 'StatusColor';
-    content = $('<font color="' + Options[type] + '"/>').wrapInner(content);
+    msg = $('<font color="' + Opts[type] + '"/>').wrapInner(msg);
 
     if (append) // 追加内容
-        box.append(content);
+        box.append(msg);
     else  // 填充内容
-        box.html(content);
+        box.html(msg);
 
     /* 设定样式并显示内容 */
-    //box.css(style).fadeTo(Options.animateSpeed, style.opacity || 1);
+    //box.css(style).fadeTo(Opts.animateSpeed, style.opacity || 1);
     box.css(style).show();
 }
 
@@ -663,17 +664,16 @@ function delayHideNotify(box, keepTime, oldTimer) {
 
     /* 清空状态并隐藏 */
     return setTimeout(function () {
-        box.fadeOut(Options.animateSpeed, function() {
+        box.fadeOut(Opts.animateSpeed, function() {
             $(this).empty();
         });
-    }, (keepTime||0) + Options.animateSpeed);
+    }, (keepTime||0) + Opts.animateSpeed);
 }
 
 /* 显示状态信息 */
 function showStatus(status, box, style, keepTime, append, type) {
     /* 扩展用户定义样式 */
-    style = $.extend({}, style, Options.statusBoxStyle);
-
+    style = $.extend({}, style, Opts.statusBoxStyle);
     showNotify(status, box, style, type, append);
 
     /* 延迟隐藏信息 */
@@ -682,18 +682,18 @@ function showStatus(status, box, style, keepTime, append, type) {
 
 /* 动态显示文本框的剩余字数 */
 function showCharCount(ta, cntBox) {
+    var remain, style, type;
+
     /* 获取实际的jQuery对象 */
     if (!(ta instanceof jQuery))
         ta = $(ta);
 
-    var remain, style, type;
-
     /* 统计剩余字数 */
-    remain = Options.maxTextareaLength - ta.val().bytes();
+    remain = Opts.maxTextareaLength - ta.val().bytes();
 
     /* 显示在右下方 */
     style = setAbsPosition(cntBox, ta, 'right', 'bottom');
-    style = $.extend({}, style, Options.countBoxStyle);
+    style = $.extend({}, style, Opts.countBoxStyle);
 
     /* 超出字数限制时，提示类型为错误 */
     type = (remain >= 0) ? 'norm' : 'error';
@@ -745,8 +745,8 @@ function setAbsPosition(target, refer, x, y) {
 /* 发送站短 */
 function sendMessages(user, title, message, ta, box) {
     /* 构建post数据 */
-    var formData = 'touser=' + encodeURIComponent(user) + '&title=' 
-        + encodeURIComponent(title) + '&message=' + encodeURIComponent(message);
+    var formData = 'touser=' + encode(user) + '&title=' 
+        + encode(title) + '&message=' + encode(message);
 
     /* Post */
     $.post('messanger.asp?action=send', formData, function (data) {
@@ -763,25 +763,25 @@ function sendMessages(user, title, message, ta, box) {
             type = 'error';
         }
 
-        showStatus(status, box, style, Options.keepTime, true, type);
+        showStatus(status, box, style, Opts.keepTime, true, type);
     });
 }
 
 /* 获取存储Key值 */
-function getKey() { return 'cc98bbscontent_tid' + PageArgs.id; }
+function key(id) { return 'cc98bbscontent_tid' + Args.id; }
 
 /* 备份文本框数据 */
 function saveData(ta, auto, statusBox) {
+    var data, status, style;
+
     if (!(ta instanceof jQuery))
         ta = $(ta);
-
-    var data, status, style;
 
     data = ta.val();
     status = auto ? '自动: ' : '手动: ';
 
     if (data) { // 保存数据
-        setValue(getKey(), data);
+        setValue(key(), data);
         status += '帖子内容保存于' + (new Date()).toLocaleTimeString();
     } else { // 放弃
         status += '帖子内容为空, 放弃备份';
@@ -793,22 +793,22 @@ function saveData(ta, auto, statusBox) {
 
     /* 显示在左下方 */
     style = setAbsPosition(statusBox, ta, 'left', 'bottom');
-    showStatus(status, statusBox, style, Options.keepTime);
+    showStatus(status, statusBox, style, Opts.keepTime);
 }
 
 /* 恢复文本框数据 */
 function recoverData(ta, statusBox) {
     var data, status, style;
 
+    if (!(ta instanceof jQuery))
+        ta = $(ta);
+
     /* 获取上次保存的数据 */
-    data = getValue(getKey(), '');
+    data = getValue(key(), '');
 
     /* 恢复数据过程 */
     if (data && (!ta.val() || confirm('确定要恢复数据吗'))) {
         status = '成功恢复数据';
-
-        if (!(ta instanceof jQuery))
-            ta = $(ta);
 
         ta.val(data);
     } else
@@ -816,7 +816,7 @@ function recoverData(ta, statusBox) {
 
     /* 显示在左下方 */
     style = setAbsPosition(statusBox, ta, 'left', 'bottom');
-    showStatus(status, statusBox, style, Options.keepTime);
+    showStatus(status, statusBox, style, Opts.keepTime);
 }
 
 /* 清除并重置周期定时器 */
@@ -829,15 +829,14 @@ function clearIntervalTimer() {
 }
 
 /* 切换显示群发信息框(仿微博@功能)*/
-function toggleAtUser(ele) {
-    var $subjectBar = $(ele).parent('div');
-    $subjectBar.find('.reply_input').toggleClass('hidden');
+function toggleSMSInput(ele) {
+    $(ele).parent('div').find('.rim_input').toggleClass('hidden');
 }
 
 /* 触发按钮点击事件 */
 function triggerButtonClick(ele) {
     /* 获取按钮名称 */
-    var name = getButtonName(ele);
+    var name = getBtnName(ele);
 
     switch (name) {
         case 'reply':  // 显示快速回复或者引用回复框
@@ -845,13 +844,13 @@ function triggerButtonClick(ele) {
             showReplyPopup(ele, name);
             break;
         case 'send':  // 切换显示群发信息框(仿微博@功能)
-            toggleAtUser(ele);
+            toggleSMSInput(ele);
             break;
         case 'close':  // 关闭快速回复或者引用回复框
             hideReplyPopup();
             break;
-        case 'expression':
-        case 'emotion':
+        case 'expr':
+        case 'emot':
         case 'upload': // 切换显示指定的面板
             toggleReplyPanel(name);
             break;
@@ -863,48 +862,59 @@ function triggerButtonClick(ele) {
 /* 发表回复成功后的回调函数 */
 function postOnSuccess(data)
 {
-    var $replyContainer, $replyContent, $replyStatusBox;
-    var status, style;
+    var $popup, $content, $statusBox;
+    var status, style, match;
     
-    $replyContainer = $('#reply_container');
-    $replyContent = $replyContainer.find('#reply_content');
-    $replyStatusBox = $replyContainer.find('#reply_status_box');
+    $popup = $('#rim_popup');
+    $content = $popup.find('#rim_content');
+    $statusBox = $popup.find('#rim_statusbox');
 
     /* 显示在正中间 */
-    style = setAbsPosition($replyStatusBox, $replyContent, 'middle', 'middle');
+    style = setAbsPosition($statusBox, $content, 'middle', 'middle');
 
+    /* 回复成功 */
     if (data.indexOf('本页面将在3秒后自动返回') != -1) {
-        if (Options.reloadTimeout == 0)
+        if (Opts.reloadTimeout == 0)
             status = '回复帖子成功, 页面将会立即刷新';
         else
-            status = '回复帖子成功，将会在' + Options.reloadTimeout +
+            status = '回复帖子成功，将会在' + Opts.reloadTimeout +
                 '秒后自动刷新';
 
-        showStatus(status, $replyStatusBox, style, Options.keepTime, true);
+        showStatus(status, $statusBox, style, Opts.keepTime, true);
 
         setTimeout(function() {
-            var url = PageArgs.quote;
+            var url = Args.quote;
 
-            if (Options.gotoLast)
+            /* 回帖后跳转到帖子最后一页 */
+            if (Opts.gotoLast)
                 url = getLastPageURL(url);
 
+            /* 强制刷新页面(即使URL hash不一样) */
             location.href = url;
             location.reload();
-        }, Options.reloadTimeout);
+        }, Opts.reloadTimeout);
 
         return;
     }
 
-    status = data.match(/产生错误的原因：([\w\W]+)请您仔细阅读了/)[1]
-        .replace(/\n/g, " ").replace(/<[^>]*?>/g, "").replace(/\s*(.*)\s*/, "$1");
+    /* 回复错误 */
+    match = data.match(/产生错误的原因：([\w\W]+)请您仔细阅读了/);
 
-    showStatus(status, $replyStatusBox, style, Options.keepTime, true, 'error');
+    if (match) {
+        status = match[1].replace(/\n/g, " ").replace(/<[^>]*?>/g, "")
+            .replace(/\s*(.*)\s*/, "$1");
+    } else
+        status = '回复帖子错误, 请检查后重新提交'
 
+    showStatus(status, $statusBox, style, Opts.keepTime, true, 'error');
+
+    /* 10秒间隔内回复错误 */
     if (status.indexOf('本论坛限制发贴距离时间为10秒') != -1) {
-        var $submitBtn = $replyContainer.find('#btn_submit')
+        var $submitBtn = $popup.find('#btn_submit')
         var value = $submitBtn.val();
 
-        $submitBtn.value = '[10秒]';
+        /* 开始10秒倒计时 */
+        $submitBtn.val('[10秒]');
 
         for (var i = 9; i >= 1; i--) {
             setTimeout((function(i) {
@@ -912,16 +922,14 @@ function postOnSuccess(data)
             })(i), (10 - i) * 1000);
         }
 
-        /* Restore submit button */
+        /* 10秒后重新启动回复 */
         setTimeout(function() {
-            /* Restore submit button value */
             $submitBtn.val(value);
 
-            if (Options.autoReply) { /* Auto reply */
+            if (Opts.autoReply) /* 自动回复 */
                 postReply();
-            } else { /* Enable submit button */
+            else /* 手动回复 */
                 $submitBtn.prop('disabled', false);
-            }
         }, 10 * 1000);
 
         return;
@@ -931,37 +939,42 @@ function postOnSuccess(data)
 /* 发表回复 */
 function postReply()
 {
-    var $replyContainer, $replyContent;
+    var $popup, $content;
     var formData, postURL, face, content;
 
-    $replyContainer = $('#reply_container');
-    $replyContent = $replyContainer.find('#reply_content');
+    $popup = $('#rim_popup');
+    $content = $popup.find('#rim_content');
 
+    /* 处理帖子内容：去除多余的空行, 链接转换成相对 */
     content = getRelativeURL(
-        $replyContent.val().replace(/^(\n*)/, '\n').replace(/(\n*)$/g, '')
+        $content.val().replace(/^(\n*)/, '\n').replace(/(\n*)$/g, '')
     );
 
-    face = $replyContainer.find('.btn_expression img').attr('src');
+    /* 记录回帖心情图标 */
+    face = $popup.find('.btn_expr img').attr('src');
     face = face.replace(/(.*\/)/, '');
 
-    postURL = 'SaveReAnnounce.asp?method=fastreply&BoardID=' + PageArgs.boardid;
+    postURL = 'SaveReAnnounce.asp?method=fastreply&BoardID=' + 
+        Args.boardid;
 
+    /* 组成Post的表单数据 */
     formData = [
-        ['followup', PageArgs.id],
-        ['rootid', PageArgs.id],
-        ['star', PageArgs.star],
-        ['username', PageArgs.user],
-        ['passwd', PageArgs.passwd],
-        ['content', encodeURIComponent(content)],
+        ['followup', Args.id],
+        ['rootid', Args.id],
+        ['star', Args.star],
+        ['username', Args.user],
+        ['passwd', Args.passwd],
+        ['content', encode(content)],
         ['expression', face],
         ['totalusetable', 'bbs1'],
-        ['subject', $replyContainer.find('#reply_subject').val()],
+        ['subject', $popup.find('#rim_subject').val()],
         ['signflag', 'yes']
     ];
 
     for (var i = 0, len = formData.length; i < len; i++)
         formData[i] = formData[i].join('=');
 
+    /* 提交 */
     $.post(postURL, formData.join('&'), postOnSuccess);
 }
 
@@ -969,15 +982,15 @@ function postReply()
 function triggerActionClick(ele)
 {
     switch (ele.id) {
-        case 'btn_cancel':
+        case 'btn_cancel': // 退出
             hideReplyPopup();
             break;
-        case 'btn_submit':
+        case 'btn_submit': // 提交
             ele.disabled = true;
             postReply();
             break;
-        case 'btn_preview':
-            alert('该功能还未实现');
+        case 'btn_preview': // 预览
+            unimplement();
             break;
         default:
             break;
@@ -991,6 +1004,7 @@ function insertIntoTextarea(insertText, ta)
         ta = $(ta);
 
     ta.val(function (index, oldValue) {
+        /* 插入到当前光标所有的位置 */
         var start = this.selectionStart;
 
         return [
@@ -1004,7 +1018,7 @@ function insertIntoTextarea(insertText, ta)
 /* 事件处理函数 */
 function handleEvents() {
     /* 捕获回复按钮点击事件 */
-    $('.reply_button').live('click', function (evt) {
+    $('.rim_btn').live('click', function (evt) {
         /* 阻止事件默认行为 */
         evt.preventDefault();
 
@@ -1013,41 +1027,39 @@ function handleEvents() {
     });
 
     /* 捕获心情图标点击事件(替换面板按钮图标)*/
-    $('#expression_panel img').live('click', function () {
-        $('.btn_expression img').attr('src', this.src);
+    $('#expr_panel img').live('click', function () {
+        $('.btn_expr img').attr('src', this.src);
     });
 
     /* 点击表情插入UBB标签到文本框 */
-    $('#emotion_panel img').live('click', function () {
+    $('#emot_panel img').live('click', function () {
         var insertText = this.src.replace(/(.*?emot(\d+)\.gif)/, "[em$2]");
-        insertIntoTextarea(insertText, '#reply_content');
+        insertIntoTextarea(insertText, '#rim_content');
     });
 
     /* 限制主题输入框的输入字数上限 */
-    //$('#reply_subject').live('input', function () {
+    //$('#rim_subject').live('input', function () {
         //console.log(this.value);
-        //if (this.value.bytes() > Options.maxSubjectLength) {
+        //if (this.value.bytes() > Opts.maxSubjectLength) {
             //console.log(this.value.bytes());
             //return false;
         //}
     //});
 
     /* 捕获文本框的各种事件 */
-    $('#reply_content').live('input focus', function () {  // 动态统计文本框字数
-        var $replyContainer, $replyContent, $actionBtn, remain;
+    $('#rim_content').live('input focus', function () {  // 动态统计文本框字数
+        var $popup, $content, $actionBtn, remain;
 
-        $replyContainer = $('#reply_container')
-        $replyContent = $(this);
+        $popup = $('#rim_popup')
+        $content = $(this);
 
         /* 实时统计字数 */
-        remain = showCharCount($replyContent, $('#reply_cnt_box'));
+        remain = showCharCount($content, $('#rim_cntbox'));
 
-        /* 显示回复框底部 */
-        $replyContainer.find('#reply_footer_container').slideDown(Options.animateSpeed);
-        $actionBtn = $replyContainer.find('#btn_submit, #btn_preview')
+        $actionBtn = $popup.find('#btn_submit, #btn_preview')
 
         /* 如果未输入数据则禁用动作按钮 */
-        if (remain == Options.maxTextareaLength) {
+        if (remain == Opts.maxTextareaLength) {
             $actionBtn.prop('disabled', true);
             return;
         }
@@ -1059,81 +1071,90 @@ function handleEvents() {
         if (AutoSaveTimer != -1)
             return;
 
+        /* 激活自动备份 */
         AutoSaveTimer = saveData.periodical(
-            Options.autoSaveInterval, window,
-            [$replyContent, true, $('#reply_status_box')]
+            Opts.autoSaveInterval, window,
+            [$content, true, $('#rim_statusbox')]
         );
-    }).live('blur', function () {
-        delayHideNotify($('#reply_cnt_box'), 0);  // 隐藏字数统计框 
+    }).live('blur', function () {  // 隐藏字数统计框
+        delayHideNotify($('#rim_cntbox'), 0); 
     });
 
     /* 捕获Ctrl+Enter键回复 */
-    $('#reply_content').live('keyup', function(evt) {
+    $('#rim_content').live('keyup', function(evt) {
         if (evt.ctrlKey && evt.keyCode == 13)
             postReply();
     });
 
     /* 备份与恢复等日常操作 */
     $('#btn_save, #btn_recover').live('click', function () {
-        var $replyContainer = $('#reply_container');
-        var $replyContent = $replyContainer.find('#reply_content');
-        var $replyStatusBox = $replyContainer.find('#reply_status_box');
+        var $popup, $conent, $statusBox;
+
+        $popup = $('#rim_popup');
+        $content = $popup.find('#rim_content');
+        $statusBox = $popup.find('#rim_statusbox');
 
         /* 清除旧的定时器 */
         clearIntervalTimer();
 
         if (this.id == 'btn_save')
-            saveData($replyContent, false, $replyStatusBox);
+            saveData($content, false, $statusBox);
         else
-            recoverData($replyContent, $replyStatusBox);
+            recoverData($content, $statusBox);
     });
 
     /* 插入时间 */
     $('#btn_instime').live('click', function() {
-        insertIntoTextarea((new Date()).toLocaleString(), '#reply_content');
+        insertIntoTextarea((new Date()).toLocaleString(), '#rim_content');
     });
 
     /* 刷新页面之前保存帖子内容 */
     $(window).unload(function () { 
-        saveData($('#reply_content'), true); 
+        saveData($('#rim_content'), true); 
     });
 
     /* 捕获群发输入框的回车事件 */
-    $('#reply_send').live('keyup', function (evt) {
+    $('#rim_sms').live('keyup', function (evt) {
         if (!this.value || evt.keyCode != 13)
             return;
 
-        var $replyContent, $replyStatus, messages, title;
+        var $content, $replyStatus;
+        var messages, title;
 
-        $replyContent = $('#reply_content'), 
-        $replyStatusBox = $('#reply_status_box');
+        $content = $('#rim_content'), 
+        $statusBox = $('#rim_statusbox');
 
         /* 设置消息正文与标题 */
         messages= [
-            '我在帖子"[url=', PageArgs.quote, '][color=blue]', PageArgs.board,
-            '->', PageArgs.title, '[/color][/url]"中@了你,快来看看吧~!',
+            '我在帖子"[url=', 
+            Args.quote, 
+            '][color=blue]', 
+            Args.board,
+            ' -> ', 
+            Args.title, 
+            '[/color][/url]"中@了你,快来看看吧~!',
         ].join('');
 
-        title = '来自' + decodeURIComponent(PageArgs.user) + '的At信息';
+        title = '来自' + decode(Args.user) + '的At信息';
 
         /* 清空旧状态信息 */
-        $replyStatusBox.empty();
+        $statusBox.empty();
 
         /* 依次发送消息 */
         $.each(this.value.split(/[，,\s]/), function (i, u) {
             if (!u) return;
 
-            sendMessages(u, title, messages, $replyContent, $replyStatusBox);
+            sendMessages(u, title, messages, $content, $statusBox);
         });
 
-        toggleAtUser(this);
+        toggleSMSInput(this);
     });
 
     /* 状态框在鼠标悬浮时一直保持显示 */
-    $('#reply_status_box').live('mouseover', function () {
+    $('#rim_statusbox').live('mouseover', function () {
         clearTimeout(StatusTimer);
     }).live('mouseout', function () { // 移出后延迟隐藏
-        StatusTimer = delayHideNotify(this, Options.keepTime, StatusTimer);
+        StatusTimer = delayHideNotify(this, Opts.keepTime, StatusTimer);
     });
 
     /* 捕获鼠标事件 */
@@ -1157,12 +1178,13 @@ function handleEvents() {
     });
 
     /* 捕获回复框的鼠标按下事件 */
-    $('#reply_container').live('mousedown', function (evt) {
+    $('#rim_popup').live('mousedown', function (evt) {
+        var dragObjOffset;
+
         if (evt.target != this)
             return;
 
-        var dragObjOffset;
-
+        /* 记录拖拽对象 */
         DragObject = this;
         DragObject.style.cursor = 'move';
         dragObjOffset = $(DragObject).offset();
@@ -1174,7 +1196,7 @@ function handleEvents() {
     });
 
     /* 捕获回复动作事件 */
-    $('.reply_action').live('click', function() {
+    $('.rim_action').live('click', function() {
         triggerActionClick(this);
     });
 }
@@ -1186,18 +1208,18 @@ function main() {
         return;
 
     /* 加载用户设置 */
-    Options = loadOptions();
+    Opts = loadOptions();
     /* 解析页面参数 */
-    PageArgs = parsePageArgs();
+    Args = parseTopicArgs();
 
     /* 如果未登录，直接退出 */
-    if (!PageArgs.user)
+    if (!Args.user)
         return;
     
     /* 添加自定义的样式 */
     addCustomizedCSS();
     /* 创建快速回复以及快速引用按钮 */
-    createReplyButtons();
+    createReplyBtns();
 
     /* 监听事件并处理 */
     handleEvents();
