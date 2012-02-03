@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.2
+// @version        0.8.3
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -28,7 +28,7 @@ var DefaultOptions = {
     errorStatusColor: 'red',     // 错误状态颜色
     normStatusColor: 'black',    // 正常状态颜色
     maxTextareaLength: 16240,    // 文本框的最大输入长度(字节数)
-    maxSubjectLegth: 100,        // 主题框的最大输入长度(字节数)
+    maxSubjectLength: 100,        // 主题框的最大输入长度(字节数)
 
     /* 快速回复框样式 */
     popupStyle: {
@@ -210,6 +210,17 @@ function parseTopicArgs() {
     ret.passwd = match ? match[1] : '';
 
     return ret;
+}
+
+/* 从HTMl代码串中查询指定选择器的片断 */
+function queryHTMLBySelector(raw, selector)
+{
+    /* 匹配script标签内容 */
+    var rscript = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
+
+    /* 临时创建div标签容纳所选择的片断 */
+    return $('<div/>').append(raw.replace(rscript, '')) // 去除script部分
+        .find(selector);
 }
 
 /* 添加自定义的样式 */
@@ -533,14 +544,9 @@ function showReplyPopup(ele, name) {
 
     /* 如果是快速引用类型 */
     if (quoteURL && name == 'quote') {
-        var rscript = /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi;
-
-        /* 获取引用的内容 */
-        $.get(quoteURL, function (data) {
-            var value = $('<div>').append(data.replace(rscript, ''))
-                .find('textarea#content').val();
-
-            $content.val(processQuoteContent(value));
+        $.get(quoteURL, function (data) { // 获取引用的内容
+            var value = queryHTMLBySelector(data, 'textarea#content').val();
+            $content.val(processQuoteContent(value)); // 内容处理，添加查看原帖等功能
         });
     }
 
@@ -748,13 +754,13 @@ function sendMessages(user, title, message, ta, box) {
     var formData = 'touser=' + encode(user) + '&title=' 
         + encode(title) + '&message=' + encode(message);
 
+    var status, style, type;
+
+    /* 显示在正中间 */
+    style = setAbsPosition(box, ta, 'middle', 'middle');
+
     /* Post */
     $.post('messanger.asp?action=send', formData, function (data) {
-        var status, style, type;
-
-        /* 显示在正中间 */
-        style = setAbsPosition(box, ta, 'middle', 'middle');
-
         if (data.indexOf('操作成功') != -1) { // 发送成功
             status = '✔ 消息成功发送给"' + user + '"';
             type = 'norm'
@@ -763,6 +769,11 @@ function sendMessages(user, title, message, ta, box) {
             type = 'error';
         }
 
+        showStatus(status, box, style, Opts.keepTime, true, type);
+    }).error(function(xhr) {
+        type = 'error';
+        status = ['提交错误, 原因是: "', xhr.status, ' ', xhr.statusText, '"']
+            .join('');
         showStatus(status, box, style, Opts.keepTime, true, type);
     });
 }
@@ -859,11 +870,11 @@ function triggerButtonClick(ele) {
     }
 }
 
-/* 发表回复成功后的回调函数 */
+/* Post提交成功后的回调函数 */
 function postOnSuccess(data)
 {
     var $popup, $content, $statusBox;
-    var status, style, match;
+    var status, style;
     
     $popup = $('#rim_popup');
     $content = $popup.find('#rim_content');
@@ -896,47 +907,45 @@ function postOnSuccess(data)
 
         return;
     }
+    
+    /* 获取错误信息 */
+    queryHTMLBySelector(data, 'table li').each(function() {
+        status = this.firstChild.nodeValue(); // 错误文本内容
+        status = status.replace(/^\s*|\s*$/g, ''); // 去除首尾空白
 
-    /* 回复错误 */
-    match = data.match(/产生错误的原因：([\w\W]+)请您仔细阅读了/);
+        showStatus(status, $statusBox, style, Opts.keepTime, 
+            true, 'error');
 
-    if (match) {
-        status = match[1].replace(/\n/g, " ").replace(/<[^>]*?>/g, "")
-            .replace(/\s*(.*)\s*/, "$1");
-    } else
-        status = '回复帖子错误, 请检查后重新提交'
+        /* 10秒间隔内回复错误 */
+        if (status.indexof('本论坛限制发贴距离时间为10秒') != -1) {
+            var $submitBtn = $popup.find('#btn_submit')
+            var value = $submitBtn.val();
 
-    showStatus(status, $statusBox, style, Opts.keepTime, true, 'error');
+            /* 开始10秒倒计时 */
+            $submitBtn.val('[10秒]');
 
-    /* 10秒间隔内回复错误 */
-    if (status.indexOf('本论坛限制发贴距离时间为10秒') != -1) {
-        var $submitBtn = $popup.find('#btn_submit')
-        var value = $submitBtn.val();
+            for (var i = 9; i >= 1; i--) {
+                setTimeout((function(i) {
+                    return function() { $submitBtn.val('[' + i + '秒]'); }
+                })(i), (10 - i) * 1000);
+            }
 
-        /* 开始10秒倒计时 */
-        $submitBtn.val('[10秒]');
+            /* 10秒后重新启动回复 */
+            setTimeout(function() {
+                $submitBtn.val(value);
 
-        for (var i = 9; i >= 1; i--) {
-            setTimeout((function(i) {
-                return function() { $submitBtn.val('[' + i + '秒]'); }
-            })(i), (10 - i) * 1000);
+                if (Opts.autoReply) // 自动回复
+                    postReply();
+                else // 手动回复
+                    $submitBtn.prop('disabled', false);
+            }, 10 * 1000);
         }
-
-        /* 10秒后重新启动回复 */
-        setTimeout(function() {
-            $submitBtn.val(value);
-
-            if (Opts.autoReply) /* 自动回复 */
-                postReply();
-            else /* 手动回复 */
-                $submitBtn.prop('disabled', false);
-        }, 10 * 1000);
-
-        return;
-    }
+    });
+    
+    return;
 }
 
-/* 发表回复 */
+/* 使用Ajax post发表回复 */
 function postReply()
 {
     var $popup, $content;
@@ -1037,14 +1046,13 @@ function handleEvents() {
         insertIntoTextarea(insertText, '#rim_content');
     });
 
-    /* 限制主题输入框的输入字数上限 */
-    //$('#rim_subject').live('input', function () {
-        //console.log(this.value);
-        //if (this.value.bytes() > Opts.maxSubjectLength) {
-            //console.log(this.value.bytes());
-            //return false;
-        //}
-    //});
+    /* 主题栏字数限制 */
+    $('#rim_subject').live('input', function () {
+        if (this.value.bytes() > Opts.maxSubjectLength)
+            this.style.color = Opts.errorStatusColor;
+        else
+            this.style.color = Opts.normStatusColor
+    });
 
     /* 捕获文本框的各种事件 */
     $('#rim_content').live('input focus', function () {  // 动态统计文本框字数
