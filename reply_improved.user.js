@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.5
+// @version        0.8.6
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -40,6 +40,16 @@ var DefaultOptions = {
         border: '5px solid transparent',               // 边框
         boxShadow: '0 0 18px rgba(0, 0, 0, 0.4)',      // 框阴影
         fontFamily: 'Verdana, Helvetica, sans-serif'   // 字体
+    },
+
+    /* 面板栏样式 */
+    panelStyle: {
+        opacity: 0.8,                                  // 透明度
+        borderRadius: '5px',                           // 边框圆角
+        backgroundColor: '#F4F9FB',                    // 背景颜色
+        border: '5px solid transparent',               // 边框
+        boxShadow: '0 0 18px rgba(0, 0, 0, 0.4)',      // 框阴影
+        padding: '5px'
     },
 
     /* 文本框样式 */
@@ -150,8 +160,8 @@ function saveOptions(opt) {
     if (opt === undefined)
         return;
 
-    opt = $.extend({}, Opts, opt);
-    localStorage.setItem('rimopt', JSON.stringify(opt));
+    $.extend(Opts, opt);
+    localStorage.setItem('rimopt', JSON.stringify(Opts));
 }
 
 function loadOptions() {
@@ -249,9 +259,11 @@ function addCustomizedCSS() {
         #rim_popup {\
             display: none;\
             position: fixed;\
+            cursor: move;\
         }\
-        #rim_popup.dragged {\
-            box-shadow: 0 0 36px rgba(0, 0, 0, 0.9);\
+        .dragged {\
+            opacity: 0.7 !important;\
+            box-shadow: 0 0 36px rgba(0, 0, 0, 0.9) !important;\
         }\
         #rim_header {\
             margin-bottom: 10px;\
@@ -275,17 +287,25 @@ function addCustomizedCSS() {
             padding: 5px;\
         }\
         #rim_toolbar {\
+            cursor: auto;\
             right: 0px;\
             padding: 4px;\
         }\
         .btn_close {\
             opacity: 0.3;\
         }\
-        #rim_panelbar {\
-            margin: 0 5px;\
+        .rim_panel {\
+            cursor: auto;\
+            position: absolute;\
         }\
         .rim_panel img {\
-            margin-right: 5px;\
+            cursor: pointer;\
+            margin: 1px;\
+            padding: 3px;\
+            border: 1px solid #ccc;\
+        }\
+        .rim_panel img:hover {\
+            background: #fff;\
         }\
         #rim_contentbox {\
             position: relative;\
@@ -480,7 +500,6 @@ function showReplyPopup(ele, name) {
 
     /* 扩展用户样式 */
     style = {
-        width: 'auto',
         left: function () { 
             return ($(window).width() - $(this).outerWidth()) / 4 * 3;
         },
@@ -489,7 +508,7 @@ function showReplyPopup(ele, name) {
         }
     };
 
-    style = $.extend({}, style, Opts.popupStyle);
+    style = $.extend({}, Opts.popupStyle, style);
     $popup.css(style);
 
     /* 动态填充快速回复框内容 */
@@ -505,6 +524,15 @@ function showReplyPopup(ele, name) {
         .find('#rim_sms') // 设定短消息栏的点位内容
             .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
         .end();
+
+
+    /* 设定面板样式 */
+    $popup.find('.rim_panel').css(
+        $.extend({}, Opts.panelStyle, { 
+            bottom: $popup.outerHeight(),
+            left: $popup.innerWidth() * 1 / 3
+        })
+    );
 
     /* 显示回复框 */
     $popup.slideDown(Opts.animateSpeed, function () {
@@ -653,7 +681,7 @@ function delayHideNotify(box, keepTime, oldTimer) {
 /* 显示状态信息 */
 function showStatus(status, box, style, keepTime, append, type) {
     /* 扩展用户定义样式 */
-    style = $.extend({}, style, Opts.statusBoxStyle);
+    style = $.extend({}, Opts.statusBoxStyle, style);
     showNotify(status, box, style, type, append);
 
     /* 延迟隐藏信息 */
@@ -673,7 +701,7 @@ function showCharCount(ta, cntBox) {
 
     /* 显示在右下方 */
     style = setAbsPosition(cntBox, ta, 'right', 'bottom');
-    style = $.extend({}, style, Opts.countBoxStyle);
+    style = $.extend({}, Opts.countBoxStyle, style);
 
     /* 超出字数限制时，提示类型为错误 */
     type = (remain >= 0) ? 'norm' : 'error';
@@ -1020,6 +1048,25 @@ function insertIntoTextarea(insertText, ta)
             oldValue.slice(start)
         ].join('');
     }).focus();
+}
+
+function handleFiles(files)
+{
+}
+
+function uploadFile(file)
+{
+    var data, upldURL;
+
+    if (window.FormData) { /* 如果支持FormData (Firefox 5.0+/Chrome 12.0+ */
+        var formData = new FormData();
+        formData.append('act', 'upload');
+        formData.append('fname', filen.name);
+        formData.append('file1', file);
+
+        data = fromData;
+    } else {
+    }
 }
 
 /* 事件处理函数 */
