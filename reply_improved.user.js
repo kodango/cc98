@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.8
+// @version        0.8.9
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -47,7 +47,7 @@ var DefaultOptions = {
 
     /* 面板栏样式 */
     panelStyle: {
-        width: '20%',
+        width: '30%',
         opacity: 0.8,                                  // 透明度
         borderRadius: '5px',                           // 边框圆角
         backgroundColor: '#F4F9FB',                    // 背景颜色
@@ -200,7 +200,6 @@ function getRelativeURL(url) {
 
 /* 返回原帖地址 */
 function getOrigURL(url) {
-    url = url || location.href;
     return getRelativeURL(url).replace(/reannounce/, 'dispbbs')
         .replace(/reply.*?&/g, '').replace(/&bm=/, '#');
 }
@@ -576,11 +575,10 @@ function processQuoteContent(val) {
 }
 
 /* 动态显示回复文本框 */
-function showReplyPopup(ele, name) {
-    var $popup, $btn, quoteURL;
+function showReplyPopup(name, ele) {
+    var $popup, quoteURL;
     
     $popup = $('#rim_popup');
-    $btn = $(ele).parent('a');
 
     /* 显示回复框 */
     $popup.slideDown(Opts.animateSpeed, function () { 
@@ -589,30 +587,46 @@ function showReplyPopup(ele, name) {
         $actionBtn.prop('disabled', true);
     });
 
-    /* 找到帖子引用地址 */
-    quoteURL = $btn.siblings().filter('a[href*="reannounce.asp"]').attr('href');
+    /* 如果不是从页面上点击回复或者引用按钮 */
+    if (!ele) {
+        Args.quote = getRelativeURL(location.href);
+        return $popup;
+    }
+
+    /* 获取帖子引用地址 */
+    quoteURL = $(ele).parent('a').siblings()
+        .filter('a[href*="reannounce.asp"]').attr('href');
+
+    /* 如果获取失败或者是快速回复类型 */
+    if (!quoteURL || name == 'reply') {
+        Args.quote = getRelativeURL(location.href);
+        return $popup
+    }
+
+    /* 否则为快速引用类型 */
+
+    /* 获取原帖地址 */
     Args.quote = getOrigURL(quoteURL);
 
-    /* 如果是快速引用类型 */
-    if (quoteURL && name == 'quote') {
-        $.get(quoteURL, function (data) {
-            /* 获取引用的内容 */
-            var value = queryHTMLBySelector(data, 'textarea#content').val();
+    /* 获取引用的内容 */
+    $.get(quoteURL, function (data) {
+        var value = queryHTMLBySelector(data, 'textarea#content').val();
 
-            /* 内容处理，添加查看原帖等功能 */
-            $popup.find('#rim_content').val(processQuoteContent(value)).focus();
-        });
-    }
+        /* 内容处理，添加查看原帖等功能 */
+        $popup.find('#rim_content').val(processQuoteContent(value))
+            .focus();
+    });
 
     return $popup;
 }
 
 /* 隐藏快速回复框 */
 function hideReplyPopup() {
-    var $popup, $previewBox;
+    var $popup = $('#rim_popup');
+    var $previewBox = $popup.find('#rim_previewbox');
 
-    $popup = $('#rim_popup');
-    $previewBox = $popup.find('#rim_previewbox');
+    if ($popup.is(':hidden'))
+        return;
 
     /* 清除旧的定时器 */
     clearIntervalTimer();
@@ -714,7 +728,7 @@ function delayHideNotify(box, keepTime, oldTimer) {
 
     /* 清空状态并隐藏 */
     return setTimeout(function () {
-        box.fadeOut(Opts.animateSpeed, function() {
+        box.fadeOut(Opts.animateSpeed, function () {
             $(this).empty();
         });
     }, (keepTime||0) + Opts.animateSpeed);
@@ -893,7 +907,7 @@ function triggerButtonClick(ele) {
     switch (name) {
         case 'reply':  // 显示快速回复或者引用回复框
         case 'quote':
-            showReplyPopup(ele, name);
+            showReplyPopup(name, ele);
             break;
         case 'send':  // 切换显示群发信息框(仿微博@功能)
             toggleSMSInput(ele);
@@ -936,7 +950,7 @@ function postOnSuccess(data)
 
         showStatus(status, $statusBox, style, Opts.keepTime, true);
 
-        setTimeout(function() {
+        setTimeout(function () {
             var url = Args.quote;
 
             /* 回帖后跳转到帖子最后一页 */
@@ -955,7 +969,7 @@ function postOnSuccess(data)
     $errList = queryHTMLBySelector(data, 'table li');
     errNum = $errList.length;
 
-    $errList.each(function() {
+    $errList.each(function () {
         status = this.firstChild.nodeValue; // 错误文本内容
         status = status.replace(/^\s*|\s*$/g, ''); // 去除首尾空白
 
@@ -971,13 +985,13 @@ function postOnSuccess(data)
             $submitBtn.val('[10秒]');
 
             for (var i = 9; i >= 1; i--) {
-                setTimeout((function(i) {
-                    return function() { $submitBtn.val('[' + i + '秒]'); }
+                setTimeout((function (i) {
+                    return function () { $submitBtn.val('[' + i + '秒]'); }
                 })(i), (10 - i) * 1000);
             }
 
             /* 10秒后重新启动回复 */
-            setTimeout(function() {
+            setTimeout(function () {
                 $submitBtn.val(value);
 
                 if (Opts.autoReply && errNum == 1) // 自动回复
@@ -1222,10 +1236,27 @@ function handleEvents() {
         delayHideNotify($('#rim_cntbox'), 0); 
     });
 
-    /* 捕获Ctrl+Enter键回复 */
-    $('#rim_content').on('keyup', function(evt) {
+    /* 监听Ctrl+Enter键回复 */
+    $('#rim_content').on('keyup', function (evt) {
         if (evt.ctrlKey && evt.keyCode == 13)
             postReply();
+    });
+
+    /* 监听按键(快捷键)操作 */
+    $(document).on('keyup', function (evt) {
+        if (!evt.altKey)
+            return;
+
+        switch (evt.keyCode) {
+            case 82:  // Alt+R键打开快速回复框
+                showReplyPopup();
+                break;
+            case 81: // Alt+Q键关闭快速回复框
+                hideReplyPopup();
+                break;
+            default:
+                break;
+        }
     });
 
     /* 备份与恢复等日常操作 */
@@ -1246,7 +1277,7 @@ function handleEvents() {
     });
 
     /* 插入时间 */
-    $('#btn_instime').on('click', function() {
+    $('#btn_instime').on('click', function () {
         insertIntoTextarea((new Date()).toLocaleString(), '#rim_content');
     });
 
@@ -1300,7 +1331,7 @@ function handleEvents() {
     });
 
     /* 捕获鼠标事件 */
-    $(document).mousemove(function(evt) {
+    $(document).mousemove(function (evt) {
         if (!DragObject)
             return;
 
@@ -1312,7 +1343,7 @@ function handleEvents() {
 
         /* 避免拖拽的过程中选中页面上的文本 */
         window.getSelection().removeAllRanges();
-    }).mouseup(function(evt) {
+    }).mouseup(function (evt) {
         if (DragObject) {
             $(DragObject).removeClass('dragged');
             DragObject = null;
@@ -1338,7 +1369,7 @@ function handleEvents() {
     });
 
     /* 捕获回复动作事件 */
-    $('.rim_action').on('click', function() {
+    $('.rim_action').on('click', function () {
         triggerActionClick(this);
     });
 }
