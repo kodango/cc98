@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.6
+// @version        0.8.7
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -25,6 +25,7 @@ var DefaultOptions = {
     removeMultiQuote: true,      // 删除多重引用的内容(仅保留最后一重)
     autoSaveInterval: 30000,     // 自动保存数据间隔(毫秒)
     keepTime: 3000,              // 状态显示保持时间
+    autoPreview: true,           // 开启实时预览功能
     errorStatusColor: 'red',     // 错误状态颜色
     normStatusColor: 'black',    // 正常状态颜色
     maxTextareaLength: 16240,    // 文本框的最大输入长度(字节数)
@@ -314,6 +315,14 @@ function addCustomizedCSS() {
         #rim_content { \
             width: 100%;\
         }\
+        #rim_statusbox,\
+        #rim_cntbox {\
+            display: none;\
+            position: absolute;\
+        }\
+        #rim_statusbox font {\
+            display: block;\
+        }\
         #rim_footer { \
             margin-top: 5px;\
             text-align: right;\
@@ -343,13 +352,10 @@ function addCustomizedCSS() {
             padding: 2px 8px;\
             border-right: 1px solid #999;\
         }\
-        #rim_statusbox,\
-        #rim_cntbox {\
-            display: none;\
-            position: absolute;\
-        }\
-        #rim_statusbox font {\
-            display: block;\
+        #rim_previewbox {\
+            margin-top: 5px;\
+            border: 1px solid #ccc;\
+            padding: 5px;\
         }\
         .hidden {\
             display: none;\
@@ -437,7 +443,9 @@ function createReplyPopup() {
         '<input type="button" id="btn_preview" class="rim_action" value="预览"/>',  // 预览
         '<input type="button" id="btn_cancel" class="rim_action" value="退出"/>',   // 退出
         '</div>',
-        '</div>'
+        '</div>',
+
+        '<div id="rim_previewbox" class="hidden"/>',  // 预览框
     ].join(''));
 
     return $popup;
@@ -487,7 +495,7 @@ function processQuoteContent(val) {
 
 /* 动态显示回复文本框 */
 function showReplyPopup(ele, name) {
-    var $popup, $content, $btn;
+    var $popup, $content, $btn, $actionBtn;
     var quoteURL, style;
     
     $popup = $('#rim_popup');
@@ -534,6 +542,10 @@ function showReplyPopup(ele, name) {
         })
     );
 
+    /* 禁用回复与预览按钮 */
+    $actionBtn = $popup.find('#btn_submit, #btn_preview')
+    $actionBtn.prop('disabled', true);
+
     /* 显示回复框 */
     $popup.slideDown(Opts.animateSpeed, function () {
         $popup.find('.rim_input').css({    // 微调主题框
@@ -562,6 +574,7 @@ function showReplyPopup(ele, name) {
         $.get(quoteURL, function (data) { // 获取引用的内容
             var value = queryHTMLBySelector(data, 'textarea#content').val();
             $content.val(processQuoteContent(value)); // 内容处理，添加查看原帖等功能
+            $content.focus();
         });
     }
 
@@ -570,16 +583,23 @@ function showReplyPopup(ele, name) {
 
 /* 隐藏快速回复框 */
 function hideReplyPopup() {
-    var $popup = $('#rim_popup');
+    var $popup, $previewBox;
+    
+    $popup = $('#rim_popup');
 
     if ($popup.is(':hidden'))
         return;
 
     /* 清除旧的定时器 */
     clearIntervalTimer();
-
     /* 退出前备份数据 */
     saveData($popup.find('#rim_content'), true);
+
+    /* 清理预览信息 */
+    $previewBox = $popup.find('#rim_previewbox');
+
+    if (!$previewBox.hasClass('hidden'))
+        hidePreview($previewBox);
 
     $popup.slideUp(Opts.animateSpeed);
 }
@@ -831,6 +851,8 @@ function recoverData(ta, statusBox) {
     } else
         status = data ? '放弃恢复数据' : '没有可以恢复的数据';
 
+    ta.focus();
+
     /* 显示在左下方 */
     style = setAbsPosition(statusBox, ta, 'left', 'bottom');
     showStatus(status, statusBox, style, Opts.keepTime);
@@ -1025,7 +1047,7 @@ function triggerActionClick(ele)
             postReply();
             break;
         case 'btn_preview': // 预览
-            unimplement();
+            togglePreview();
             break;
         default:
             break;
@@ -1048,6 +1070,39 @@ function insertIntoTextarea(insertText, ta)
             oldValue.slice(start)
         ].join('');
     }).focus();
+}
+
+function showPreview(box)
+{
+    var script = document.createElement('script');
+
+    script.type = 'text/javascript';
+    script.innerHTML = 'searchubb("rim_preview", 1, "tablebody2")';
+
+    box = $('#rim_previewbox').html([
+        '<span id="rim_preview">',
+        $('#rim_content').val().replace(/\n/g, '<br>'),
+        '</span>'
+    ].join(''));
+
+    box.get(0).appendChild(script);
+    box.removeClass('hidden');
+}
+
+function hidePreview(box)
+{
+    box.addClass('hidden');
+    box.empty();
+}
+
+function togglePreview()
+{
+    var $previewBox = $('#rim_previewbox');
+
+    if ($previewBox.hasClass('hidden'))
+        showPreview($previewBox);
+    else
+        hidePreview($previewBox);
 }
 
 function handleFiles(files)
@@ -1105,16 +1160,23 @@ function handleEvents() {
 
         $popup = $('#rim_popup')
         $content = $(this);
+        $actionBtn = $popup.find('#btn_submit, #btn_preview')
 
         /* 实时统计字数 */
         remain = showCharCount($content, $('#rim_cntbox'));
-
-        $actionBtn = $popup.find('#btn_submit, #btn_preview')
 
         /* 如果未输入数据则禁用动作按钮 */
         if (remain == Opts.maxTextareaLength) {
             $actionBtn.prop('disabled', true);
             return;
+        }
+
+        /* 所见即所得模式：实时更新预览内容，效率比较差?慎用? */
+        if (Opts.autoPreview) {
+            $previewBox = $popup.find('#rim_previewbox');
+
+            if (!$previewBox.hasClass('hidden'))
+                showPreview($previewBox);
         }
 
         /* 激活动作按钮 */
@@ -1234,12 +1296,12 @@ function handleEvents() {
     $('#rim_popup').on('mousedown', function (evt) {
         var dragObjOffset;
 
-        if (evt.target != this)
+        /* 使得拖拽面积更大 */
+        if (evt.target.tagName.toLowerCase() != 'div')
             return;
 
         /* 记录拖拽对象 */
         DragObject = this;
-        DragObject.style.cursor = 'move';
         dragObjOffset = $(DragObject).offset();
 
         MouseOffset = {
