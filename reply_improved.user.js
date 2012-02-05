@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.8.7
+// @version        0.8.8
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @include        http://localhost/cc98/*
@@ -26,6 +26,8 @@ var DefaultOptions = {
     autoSaveInterval: 30000,     // 自动保存数据间隔(毫秒)
     keepTime: 3000,              // 状态显示保持时间
     autoPreview: true,           // 开启实时预览功能
+    previewTriggerPattern:       // 实际预览触发模式
+        '(\\[/[a-z]{1,6}\\]|[^0-9a-z\u4E00-\u9FA5]|\n)$',  // UBB标签或者非中文数字英文符号
     errorStatusColor: 'red',     // 错误状态颜色
     normStatusColor: 'black',    // 正常状态颜色
     maxTextareaLength: 16240,    // 文本框的最大输入长度(字节数)
@@ -45,6 +47,7 @@ var DefaultOptions = {
 
     /* 面板栏样式 */
     panelStyle: {
+        width: '20%',
         opacity: 0.8,                                  // 透明度
         borderRadius: '5px',                           // 边框圆角
         backgroundColor: '#F4F9FB',                    // 背景颜色
@@ -258,7 +261,6 @@ function addCustomizedCSS() {
             vertical-align: middle;\
         }\
         #rim_popup {\
-            display: none;\
             position: fixed;\
             cursor: move;\
         }\
@@ -269,6 +271,10 @@ function addCustomizedCSS() {
         #rim_header {\
             margin-bottom: 10px;\
             position: relative;\
+            text-align: right;\
+        }\
+        #rim_subjectbar {\
+            position: relative;\
         }\
         .rim_input {\
             width: 100%;\
@@ -277,20 +283,24 @@ function addCustomizedCSS() {
             background-color: #fefefe;\
             border: 1px solid #ccc;\
         }\
-        .btn_send, #rim_toolbar {\
+        #rim_ltoolbar, #rim_mtoolbar,\
+        #rim_rtoolbar {\
             top: 0px;\
+            cursor: auto;\
+            padding: 5px;\
             position: absolute;\
+        }\
+        #rim_ltoolbar, #rim_mtoolbar {\
+            left: 0px;\
             background-color: #eee;\
             border: 1px solid #ccc;\
         }\
-        .btn_send {\
-            left: 0px;\
-            padding: 5px;\
-        }\
-        #rim_toolbar {\
-            cursor: auto;\
-            right: 0px;\
+        #rim_ltoolbar {\
             padding: 4px;\
+        }\
+        #rim_rtoolbar {\
+            right: 0px;\
+            padding: 5px;\
         }\
         .btn_close {\
             opacity: 0.3;\
@@ -389,7 +399,7 @@ function createReplyBtns() {
 
 /* 创建快速回复弹出窗口 */
 function createReplyPopup() {
-    var $popup = $('#rim_popup');
+    var $popup = $('#rim_popup'), style;
 
     /* 若已经添加到文档中 */
     if ($popup.length != 0)
@@ -404,19 +414,24 @@ function createReplyPopup() {
         '<div id="rim_subjectbar">',  // 回复框主题栏
         '<input type="text" id="rim_subject" class="rim_input"/>',  // 回复框主题
         '<input type="text" id="rim_sms" class="rim_input hidden"/>',  // 群发信息输入框
+        '<div id="rim_mtoolbar">',
         '<a class="rim_btn btn_send">',  // 群发信息
         '<img class="rim_btn_img" data-name="send" alt="点击群发信息"/>',
         '</a>',
         '</div>',
-        '<div id="rim_toolbar">',  // 回复面板按钮
+        '<div id="rim_rtoolbar">',  // 回复面板按钮
+        '<a class="rim_btn btn_close" title="关闭">',  // 回复框关闭按钮
+        '<img class="rim_btn_img" data-name="close" alt="关闭"/>',
+        '</a>',
+        '</div>',
+        '</div>',
+
+        '<div id="rim_ltoolbar">',
         '<a class="rim_btn btn_expr" title="发帖心情">',  // 发帖心情按钮
         '<img class="rim_btn_img" data-name="expr" alt="发帖心情"/>',
         '</a>',
         '<a class="rim_btn btn_emot" title="插入表情">',  // 插入表情按钮
         '<img class="rim_btn_img" data-name="emot" alt="插入表情"/>',
-        '</a>',
-        '<a class="rim_btn btn_close" title="关闭">',  // 回复框关闭按钮
-        '<img class="rim_btn_img" data-name="close" alt="关闭"/>',
         '</a>',
         '</div>',
         '</div>',
@@ -447,6 +462,64 @@ function createReplyPopup() {
 
         '<div id="rim_previewbox" class="hidden"/>',  // 预览框
     ].join(''));
+
+    /* 微调主题栏样式 */
+    $popup.find('#rim_subjectbar').css({
+        marginLeft: function (index, oldValue) {
+            var $toolbar, btnNum, btnWidth, offset, preOffset;
+
+            $toolbar = $popup.find('#rim_ltoolbar'); 
+            btnNum = $toolbar.children().length;
+            btnWidth = $toolbar.outerWidth() / btnNum;
+
+            offset = (btnNum + 0.25) * btnWidth;
+            preOffset = parseFloat(oldValue) || 0;
+
+            return (preOffset > offset) ? preOffset : preOffset + offset;
+        }
+    });
+
+    /* 动态填充快速回复框内容 */
+    $popup
+        .find('.rim_btn_img')
+            .attr('src', function () {  // 设定按钮地址
+                return getBtnURL(this); 
+            })
+        .end()
+        .find('#rim_subject')  // 设定主题
+            .val('Re: ' + Args.title)
+        .end()
+        .find('#rim_sms') // 设定短消息栏的点位内容
+            .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
+        .end();
+
+    /* 设置文本框样式和占位文字 */
+    $popup.find('#rim_content').css(Opts.textAreaStyle)
+        .attr('placeholder', '请输入回复内容, 最多可输入' + Opts.maxTextareaLength + '字');
+
+    /* 扩展用户设置的快速回复框样式 */
+    style = {
+        left: function () { 
+            return ($(window).width() - $(this).outerWidth()) / 4 * 3;
+        },
+        top: function () {
+            return ($(window).height() - $(this).outerHeight()) / 3 * 2;
+        }
+    };
+
+    style = $.extend({}, Opts.popupStyle, style);
+    $popup.css(style);
+
+    /* 设定面板样式 */
+    $popup.find('.rim_panel').css(
+        $.extend({}, Opts.panelStyle, { 
+            top: 0,
+            right: $popup.outerWidth()
+        })
+    );
+
+    /* 隐藏 */
+    $popup.css('display', 'none');
 
     return $popup;
 }
@@ -495,74 +568,16 @@ function processQuoteContent(val) {
 
 /* 动态显示回复文本框 */
 function showReplyPopup(ele, name) {
-    var $popup, $content, $btn, $actionBtn;
-    var quoteURL, style;
+    var $popup, $btn, quoteURL;
     
     $popup = $('#rim_popup');
     $btn = $(ele).parent('a');
 
-    /* 设置文本框样式和点位文字 */
-    $content = $popup.find('#rim_content').css(Opts.textAreaStyle)
-        .attr('placeholder', '请输入回复内容, 最多可输入' + 
-            Opts.maxTextareaLength + '字');
-
-    /* 扩展用户样式 */
-    style = {
-        left: function () { 
-            return ($(window).width() - $(this).outerWidth()) / 4 * 3;
-        },
-        top: function () {
-            return ($(window).height() - $(this).outerHeight()) / 3 * 2;
-        }
-    };
-
-    style = $.extend({}, Opts.popupStyle, style);
-    $popup.css(style);
-
-    /* 动态填充快速回复框内容 */
-    $popup
-        .find('.rim_btn_img')
-            .attr('src', function () {  // 设定按钮地址
-                return getBtnURL(this); 
-            })
-        .end()
-        .find('#rim_subject')  // 设定主题
-            .val('Re: ' + Args.title)
-        .end()
-        .find('#rim_sms') // 设定短消息栏的点位内容
-            .attr('placeholder', '用户名以逗号或者空格相隔, 按回车发送。例如: u1, u2 u3')
-        .end();
-
-
-    /* 设定面板样式 */
-    $popup.find('.rim_panel').css(
-        $.extend({}, Opts.panelStyle, { 
-            bottom: $popup.outerHeight(),
-            left: $popup.innerWidth() * 1 / 3
-        })
-    );
-
-    /* 禁用回复与预览按钮 */
-    $actionBtn = $popup.find('#btn_submit, #btn_preview')
-    $actionBtn.prop('disabled', true);
-
     /* 显示回复框 */
-    $popup.slideDown(Opts.animateSpeed, function () {
-        $popup.find('.rim_input').css({    // 微调主题框
-            paddingLeft: function (index, oldValue) {
-                var offset = $popup.find('.btn_send').outerWidth();
-                var preOffset = parseFloat(oldValue) || 0;
-                
-                return (preOffset > offset) ? preOffset : preOffset + offset;
-            },
-            width: function (index, oldValue) {
-                var $replyToolbar = $popup.find('#rim_toolbar');
-                var btnNum = $replyToolbar.children().length;
-                var btnWidth = $replyToolbar.width() / btnNum;
-
-                return $(this).parent().width() - btnWidth * (1 + btnNum);
-            }
-        });
+    $popup.slideDown(Opts.animateSpeed, function () { 
+        /* 禁用回复与预览按钮 */
+        var $actionBtn = $popup.find('#btn_submit, #btn_preview');
+        $actionBtn.prop('disabled', true);
     });
 
     /* 找到帖子引用地址 */
@@ -571,10 +586,12 @@ function showReplyPopup(ele, name) {
 
     /* 如果是快速引用类型 */
     if (quoteURL && name == 'quote') {
-        $.get(quoteURL, function (data) { // 获取引用的内容
+        $.get(quoteURL, function (data) {
+            /* 获取引用的内容 */
             var value = queryHTMLBySelector(data, 'textarea#content').val();
-            $content.val(processQuoteContent(value)); // 内容处理，添加查看原帖等功能
-            $content.focus();
+
+            /* 内容处理，添加查看原帖等功能 */
+            $popup.find('#rim_content').val(processQuoteContent(value)).focus();
         });
     }
 
@@ -584,11 +601,9 @@ function showReplyPopup(ele, name) {
 /* 隐藏快速回复框 */
 function hideReplyPopup() {
     var $popup, $previewBox;
-    
-    $popup = $('#rim_popup');
 
-    if ($popup.is(':hidden'))
-        return;
+    $popup = $('#rim_popup');
+    $previewBox = $popup.find('#rim_previewbox');
 
     /* 清除旧的定时器 */
     clearIntervalTimer();
@@ -596,8 +611,6 @@ function hideReplyPopup() {
     saveData($popup.find('#rim_content'), true);
 
     /* 清理预览信息 */
-    $previewBox = $popup.find('#rim_previewbox');
-
     if (!$previewBox.hasClass('hidden'))
         hidePreview($previewBox);
 
@@ -785,7 +798,7 @@ function sendMessages(user, title, message, ta, box) {
 
         if (data.indexOf('操作成功') != -1) { // 发送成功
             status = '✔ 消息成功发送给"' + user + '"';
-            type = 'norm'
+            type = 'norm';
         } else { // 发送失败
             status = '✘ 消息未能发送给"' + user + '"';
             type = 'error';
@@ -860,8 +873,7 @@ function recoverData(ta, statusBox) {
 
 /* 切换显示群发信息框(仿微博@功能)*/
 function toggleSMSInput(ele) {
-    var $btn = $(ele).parent('a');
-    $btn.parent('div').find('.rim_input').toggleClass('hidden');
+    $('.rim_input').toggleClass('hidden');
 }
 
 /* 触发按钮点击事件 */
@@ -1105,6 +1117,7 @@ function togglePreview()
         hidePreview($previewBox);
 }
 
+/* 未完成 */
 function handleFiles(files)
 {
 }
@@ -1142,7 +1155,7 @@ function handleEvents() {
 
     /* 点击表情插入UBB标签到文本框 */
     $('#emot_panel').on('click', 'img', function () {
-        var insertText = this.src.replace(/(.*?emot(\d+)\.gif)/, "[em$2]");
+        var insertText = this.src.replace(/(.*?emot(\d+)\.gif)/, '[em$2]');
         insertIntoTextarea(insertText, '#rim_content');
     });
 
@@ -1158,9 +1171,9 @@ function handleEvents() {
     $('#rim_content').on('input focus', function () {  // 动态统计文本框字数
         var $popup, $content, $actionBtn, remain;
 
-        $popup = $('#rim_popup')
+        $popup = $('#rim_popup');
         $content = $(this);
-        $actionBtn = $popup.find('#btn_submit, #btn_preview')
+        $actionBtn = $popup.find('#btn_submit, #btn_preview');
 
         /* 实时统计字数 */
         remain = showCharCount($content, $('#rim_cntbox'));
@@ -1173,10 +1186,15 @@ function handleEvents() {
 
         /* 所见即所得模式：实时更新预览内容，效率比较差?慎用? */
         if (Opts.autoPreview) {
-            $previewBox = $popup.find('#rim_previewbox');
+            var $previewBox = $popup.find('#rim_previewbox');
 
-            if (!$previewBox.hasClass('hidden'))
-                showPreview($previewBox);
+            if (!$previewBox.hasClass('hidden')) { // 预览框显示
+                var lastSubStr = $content.val().slice(-9);
+                var pattern = new RegExp(Opts.previewTriggerPattern, 'gi');
+
+                if (lastSubStr.match(pattern))
+                    showPreview($previewBox);
+            }
         }
 
         /* 激活动作按钮 */
@@ -1236,7 +1254,7 @@ function handleEvents() {
         var $content, $replyStatus;
         var messages, title;
 
-        $content = $('#rim_content'), 
+        $content = $('#rim_content');
         $statusBox = $('#rim_statusbox');
 
         /* 设置消息正文与标题 */
@@ -1280,7 +1298,7 @@ function handleEvents() {
         /* 动态更新位置样式 */
         $(DragObject).css({
             left: evt.pageX - MouseOffset.left - $(document).scrollLeft(),
-            top: evt.pageY - MouseOffset.top - $(document).scrollTop(),
+            top: evt.pageY - MouseOffset.top - $(document).scrollTop()
         }).addClass('dragged');
 
         /* 避免拖拽的过程中选中页面上的文本 */
