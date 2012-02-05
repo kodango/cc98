@@ -1,0 +1,15 @@
+{
+    "name": "CC98 Reply Improved",
+    "version": "0.8.9",
+    "description":  "Improve the CC98's native reply functions",
+    "content_scripts": [
+        {
+            "matches": [
+                "http://www.cc98.org/dispbbs.asp*", 
+                "http://10.10.98.98/dispbbs.asp*"
+            ],
+            "js": ["jquery.js", "reply_improved.user.js"],
+            "run_at": "document_end"
+        }
+    ]
+}

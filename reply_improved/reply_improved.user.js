@@ -8,6 +8,7 @@
 // @include        http://www.cc98.org/dispbbs.asp*
 // @include        http://10.10.98.98/dispbbs.asp*
 // @require        http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js
+// @description    Improve the CC98's native reply functions.
 // @run-at         document-end
 // ==/UserScript==
 
@@ -213,16 +214,16 @@ function getLastPageURL(url)
 
 /* 解析获得与本主题相关的参数 */
 function parseTopicArgs() {
-    var ret = {}, args, name, val, cookie, match;
+    var ret = {}, args, cookie, match;
 
     /* 帖子楼层数数 */
     ret.floor = location.hash.slice(1) || '1';
 
     /* 获取URL地址查询参数 */
     args = location.search.toLowerCase().slice(1).split('&');
-    for (var i = 0, len = args.length; i < len; i++) {
-        [name, val] = args[i].split('=');
-        ret[name] = val;
+    for (var i = 0, len = args.length, arg; i < len; i++) {
+        arg = args[i].split('=');
+        ret[arg[0]] = arg[1];
     }
 
     /* 获取帖子标题和版块名称 */
@@ -285,24 +286,22 @@ function addCustomizedCSS() {
         #rim_ltoolbar, #rim_mtoolbar,\
         #rim_rtoolbar {\
             top: 0px;\
+            height: 17px;\
             cursor: auto;\
-            padding: 5px;\
+            padding: 4px;\
             position: absolute;\
+            border: 1px solid #ccc;\
         }\
         #rim_ltoolbar, #rim_mtoolbar {\
             left: 0px;\
             background-color: #eee;\
-            border: 1px solid #ccc;\
         }\
         #rim_mtoolbar {\
             border-right-width: 0;\
         }\
-        #rim_ltoolbar {\
-            padding: 4px;\
-        }\
         #rim_rtoolbar {\
             right: 0px;\
-            padding: 5px;\
+            border-right-width: 0;\
         }\
         .btn_close {\
             opacity: 0.3;\
