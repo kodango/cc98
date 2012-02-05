@@ -1,6 +1,6 @@
 {
     "name": "CC98 Reply Improved",
-    "version": "0.8.9",
+    "version": "0.9.0",
     "description":  "Improve the CC98's native reply functions",
     "content_scripts": [
         {
