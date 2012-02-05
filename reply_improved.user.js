@@ -295,6 +295,9 @@ function addCustomizedCSS() {
             background-color: #eee;\
             border: 1px solid #ccc;\
         }\
+        #rim_mtoolbar {\
+            border-right-width: 0;\
+        }\
         #rim_ltoolbar {\
             padding: 4px;\
         }\
@@ -475,8 +478,14 @@ function createReplyPopup() {
             offset = (btnNum + 0.25) * btnWidth;
             preOffset = parseFloat(oldValue) || 0;
 
-            return (preOffset > offset) ? preOffset : preOffset + offset;
-        }
+            return preOffset + offset;
+        },
+        paddingLeft: function (index, oldValue) {
+            var offset = $popup.find('#rim_mtoolbar').outerWidth();
+            var preOffset = parseFloat(oldValue) || 0;
+
+            return preOffset + offset;
+        },
     });
 
     /* 动态填充快速回复框内容 */
