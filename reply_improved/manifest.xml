@@ -1,0 +1,22 @@
+ <?xml version="1.0" encoding="utf-8"?> 
+ <extension> 
+ <id>org.cc98.replyimproved</id> 
+ <name>CC98 Reply Improved</name> 
+ <show_icon>false</show_icon> 
+ <description>改进版的CC98快速回复与快速引用功能</description> 
+ <version>0.9.5</version>
+ <request_api_version>1</request_api_version>
+ <author>tuantuan</author>
+
+ <content_scripts>
+     <content_script>
+         <match>http://localhost/cc98/test_cc98.htm</match>
+         <match>http://www.cc98.org/dispbbs.asp*</match>
+         <match>http://10.10.98.98/dispbbs.asp*</match>
+         <js>jquery.min.js</js>
+         <js>lscache.js</js>
+         <js>reply_improved.user.js</js>
+         <css>rim.css</css>
+     </content_script>
+ </content_scripts>
+ </extension> 

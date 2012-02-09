@@ -1,0 +1,186 @@
+.rim_btn {
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.rim_btn:not(:last-of-type) {
+    margin-right: 5px;
+}
+
+.rim_btn_img, .rim_panel img {
+    width: 15px;
+    height: 15px;
+    border: none;
+    vertical-align: middle;
+}
+
+#rim_popup {
+    position: fixed;
+    cursor: move;
+    opacity: 0.9;
+    width: 56%;
+    font-size: 1em;
+    border-radius: 5px;
+    background-color: #F4F9FB;
+    border: 5px solid transparent;
+    box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);
+    font-family: Verdana, Helvetica, sans-serif;
+}
+
+#rim_popup.dragged {
+    opacity: 0.7;
+    box-shadow: 0 0 36px rgba(0, 0, 0, 0.9);
+}
+
+#rim_header {
+    margin-bottom: 10px;
+    position: relative;
+    text-align: right;
+}
+
+#rim_subjectbar {
+    position: relative;
+    margin-left: 5px;
+}
+
+.rim_input {
+    width: 100%;
+    height: 27px;
+    padding: 2px;
+    background-color: #fefefe;
+    border: 1px solid #ccc;
+}
+
+#rim_ltoolbar, #rim_mtoolbar,
+#rim_rtoolbar {
+    top: 0px;
+    height: 17px;
+    cursor: auto;
+    padding: 4px;
+    position: absolute;
+    border: 1px solid #ccc;
+}
+
+#rim_ltoolbar, #rim_mtoolbar {
+    left: 0px;
+    background-color: #eee;
+}
+
+#rim_rtoolbar {
+    right: 0px;
+}
+
+.btn_close { opacity: 0.4; }
+
+#rim_send, #rim_state {
+    margin-top: 10px;
+}
+
+.rim_panel {
+    cursor: auto;
+    position: absolute;
+    width: 30%;
+    opacity: 0.9;
+    border-radius: 5px;
+    background-color: #f4f9fb;
+    border: 5px solid transparent;
+    box-shadow: 0 0 18px rgba(0, 0, 0, 0.4);
+    padding: 5px;
+}
+
+.rim_panel img {
+    cursor: pointer;
+    margin: 1px;
+    padding: 3px;
+    border: 1px solid #ccc;
+}
+
+.rim_panel img:hover {
+    background: #fff;
+}
+
+#rim_contentbox {
+    position: relative;
+    margin-top: 10px;
+}
+
+#rim_content { 
+    width: 100%;
+    height: 270px;
+    padding: 0.4em;
+    line-height: 1.6em;
+    border: 1px solid #ccc;
+    background-color: '#fefefe';
+}
+
+#rim_statusbox,
+#rim_cntbox {
+    display: none;
+    position: absolute;
+}
+
+#rim_statusbox {
+    opacity: 0.8;
+    padding: 2px 5px;
+    line-height: 2.0em;
+    border-radius: 2px;
+    background-color: #fffef9;
+    border: 1px solid #cccccc;
+}
+
+#rim_cntbox {
+    opacity: 0.6;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 5px;
+    background-color: #d3d7d4;
+    border: 1px solid #33a3dc;
+}
+
+#rim_statusbox font {
+    display: block;
+}
+
+#rim_footer { 
+    margin-top: 5px;
+    text-align: right;
+    height: 25px;
+}
+
+#rim_actbar {
+    padding-right: 8px;
+}
+
+.rim_action {
+    font-size: 1em;
+    cursor: pointer;
+    font-weight: bold;
+    margin-left: 10px;
+    padding: 2px 10px;
+    border-radius: 5px;
+    border: 1px solid #c4c4c4;
+    box-shadow: 0 0 3px rgba(120, 80, 100, 0.4);
+    font-family: Verdana, Helvetica, sans-serif;
+}
+
+#rim_asvbar {
+    float: left;
+    padding-top: 5px;
+}
+
+#rim_asvbar span {
+    cursor: pointer;
+    font-size: 0.9em;
+    padding: 2px 8px;
+    border-right: 1px solid #999;
+}
+
+#rim_previewbox {
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    padding: 5px;
+}
+
+.hidden {
+    display: none;
+}

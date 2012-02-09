@@ -1,0 +1,6 @@
+<?xml version='0.9.5' encoding='UTF-8'?>
+<gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
+  <app appid='lhkdhgdmiichehecocbemgakmkjfaogb'>
+      <updatecheck codebase='https://github.com/dangoakachan/cc98/tree/master/reply_improved/reply_improved.crx' version='0.9.5' />
+  </app>
+</gupdate>
