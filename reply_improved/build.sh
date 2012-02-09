@@ -38,7 +38,10 @@ sed -i "/localhost\/cc98/d" $CHROME_BUILD_DIR/manifest.json
 sed -i "/localhost\/cc98/d" $SOGOU_BUILD_DIR/manifest.xml
 
 echo "Package chrome extension"
-chrome --no-message-box --pack-extension=$CHROME_BUILD_DIR --pack-extension-key=$SRC_DIR/reply_improved.pem
+#chrome --no-message-box --pack-extension=$CHROME_BUILD_DIR --pack-extension-key=$SRC_DIR/reply_improved.pem
+#chrome --pack-extension=$CHROME_BUILD_DIR --pack-extension-key=$SRC_DIR/reply_improved.pem
+winrar a -afzip -ep1 reply_improved.zip $CHROME_BUILD_DIR/*
+buildcrx reply_improved.zip reply_improved.pem reply_improved.crx
 
 echo "Package sogou explore extension"
-winrar a -afzip -ep1 reply_improved.sext reply_improved_sogou/*
+winrar a -afzip -ep1 reply_improved.sext $SOGOU_BUILD_DIR/*
