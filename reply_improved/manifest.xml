@@ -3,8 +3,8 @@
  <id>org.cc98.replyimproved</id> 
  <name>CC98 Reply Improved</name> 
  <show_icon>false</show_icon> 
- <description>改进版的CC98快速回复与快速引用功能</description> 
- <version>0.9.5</version>
+ <description>改进版的CC98快速回复/引用/编辑功能</description> 
+ <version>0.9.6</version>
  <request_api_version>1</request_api_version>
  <author>tuantuan</author>
 

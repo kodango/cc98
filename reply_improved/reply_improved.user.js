@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.9.5
+// @version        0.9.6
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @description    Improve the CC98's native reply functions.
@@ -108,7 +108,7 @@ function getCurrentTime() {
 
 /* HTML5 dataset属性读方法 */
 function getDataSet(ele, name) {
-    if (ele.dataset)　// 如果支持
+    if (ele.dataset) // 如果支持
         return ele.dataset[name];
     else // 否则使用旧的API
         return ele.getAttribute('data-' + name);
@@ -143,6 +143,14 @@ function isChrome()
     return (window.chrome != null);
 }
 
+/* 检查是否为Sogou浏览器 */
+function isSogou()
+{
+    /* Fix: useAgent判断不准确 */
+    var userAgent = navigator.userAgent.toLowerCase();
+    return (userAgent.indexOf('se 2.x') != -1);
+}
+
 /* 检查是否为GM环境 */
 function isGM()
 {
@@ -156,7 +164,9 @@ function getResourceURL(resourceName)
         return chrome.extension.getURL('images/' + resourceName);
     else if (isGM()) // 判断是否在Greasemonkey环境下(Firefox)
         return GM_getResourceURL(resourceName);
-    else  
+    else if (isSogou()) // 如果是搜狗浏览器
+        return sogouExplorer.extension.getURL('images/' + resourceName);
+    else
         return 'emot/simpleemot/em02.gif';
 }
 
@@ -375,8 +385,9 @@ function recoverData() {
     if (data && (!$Content.val() || confirm('确定要恢复数据吗'))) {
         status = '成功恢复数据';
         $Content.val(data).focus();
-    } else
+    } else {
         status = data ? '放弃恢复数据' : '没有可以恢复的数据';
+    }
 
     /* 显示在左下方 */
     showStatus(status, ['left', 'bottom'], 'norm', false);
@@ -917,7 +928,7 @@ function createEmotPanel() {
     var html = '<img src="emot/simpleemot/emot%n%.gif" alt="[em%n%]">';
 
     for (var i = 0; i <= 90; i++)
-        arr.push(html.replace(/%n%/g,  (('0' + i).slice(-2))));
+        arr.push(html.replace(/%n%/g, (('0' + i).slice(-2))));
 
     return arr.join('');
 } 
@@ -946,6 +957,7 @@ function createPanel(name) {
             break;
         default:
             html = '面板创建失败';
+            break;
     }
 
     return html;
