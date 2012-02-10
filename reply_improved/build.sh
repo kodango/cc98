@@ -27,7 +27,7 @@ echo $VERSION
 echo "Update manifest file version"
 sed -i "/\"version\"/s/[0-9.]\+/$VERSION/" manifest.json
 sed -i "/<version>/s/[0-9.]\+/$VERSION/" manifest.xml
-sed -i "/version=/s/version='[0-9.]\+'/version='$VERSION'/" updates.xml
+sed -i "/<updatecheck/s/version='[0-9.]\+'/version='$VERSION'/" updates.xml
 
 echo "Copy source files to build directory"
 cp -rf images rim.css jquery.min.js lscache.js manifest.json reply_improved.user.js $CHROME_BUILD_DIR

@@ -348,21 +348,22 @@ function setAbsPosition(target, refer, position) {
     return style;
 }
 
-/* 获取存储Key值 */
-function key(id) { return 'rimdata_tid' + Args.id; }
+/* 获取数据保存Key值 */
+function getKey(id) { return 'rimdata_tid' + Args.id; }
 
 /* 备份文本框数据 */
 function saveData(auto, disableStatus) {
-    var data, status;
+    var data, status, key;
 
     data = $Content.val();
     status = auto ? '自动: ' : '手动: ';
+    key = getKey();
 
     /* 清除自动备份定时器 */
     clearIntervalTimer(AutoSaveTimer);
 
     if (data) { // 备份数据
-        lscache.set(key(), data, Options.expireTime);
+        lscache.set(key, data, Options.expireTime);
         status += '帖子内容保存于' + getCurrentTime();
     } else { // 放弃备份
         status += '帖子内容为空, 放弃备份';
@@ -376,10 +377,10 @@ function saveData(auto, disableStatus) {
 
 /* 恢复文本框数据 */
 function recoverData() {
-    var data, status;
+    var data, status, key = getKey();
 
     /* 获取上次保存的数据 */
-    data = lscache.get(key());
+    data = lscache.get(key);
 
     /* 恢复数据过程 */
     if (data && (!$Content.val() || confirm('确定要恢复数据吗'))) {
@@ -1083,6 +1084,17 @@ function textareaHandlers()
     }
 }
 
+/* 监听主题输入框按键事件 */
+function subjectHandler()
+{
+    var $subject = $('#rim_subject');
+
+    if ($subject.val().bytes() > Options.maxSubjectLength)
+        $subject.css('color', Options.errorStatusColor);
+    else
+        $subject.css('color', Options.normStatusColor);
+}
+
 /* 监听页面按键(快捷键) */
 function shortcutHandlers(evt)
 {
@@ -1107,10 +1119,16 @@ function backupHandlers(evt)
     /* 清除旧的定时器 */
     clearIntervalTimer();
 
-    if (this.id == 'btn_save')
-        saveData(false);
-    else
-        recoverData();
+    switch (this.id) {
+        case 'btn_save':     // 保存
+            saveData(false);
+            break;
+        case 'btn_recover':  // 恢复
+            recoverData();
+            break;
+        default:
+            break;
+    }
 }
 
 /* 监听群发信息输入框回车事件 */
@@ -1251,14 +1269,7 @@ function handleEvents() {
     });
 
     /* 监听主题输入框按键事件：字数限制 */
-    $('#rim_subject').on('input', function () {
-        var $subject = $('#rim_subject');
-
-        if ($subject.val().bytes() > Options.maxSubjectLength)
-            $subject.css('color', Options.errorStatusColor);
-        else
-            $subject.css('color', Options.normStatusColor);
-    });
+    $('#rim_subject').on('input', subjectHandler);
 
     /* 监听回复文本框按键等事件 */
     $Content.on('input focus', textareaHandlers);
@@ -1278,7 +1289,7 @@ function handleEvents() {
     $(document).keyup(shortcutHandlers);
 
     /* 监听备份与恢复等点击事件 */
-    $('#btn_save, #btn_recover').click(backupHandlers);
+    $('#rim_asvbar span').click(backupHandlers);
 
     /* 监听窗口退出事件: 备份帖子内容 */
     $(window).unload(function () { 

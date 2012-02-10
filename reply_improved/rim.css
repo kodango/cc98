@@ -17,7 +17,7 @@
 #rim_popup {
     position: fixed;
     cursor: move;
-    opacity: 0.9;
+    opacity: 1;
     width: 56%;
     font-size: 1em;
     border-radius: 5px;
