@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.9.6
+// @version        0.9.7
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @description    Improve the CC98's native reply functions.
@@ -35,7 +35,6 @@ var DefaultOptions = {
     prependState: true,          // 在帖子内容开头增加个人状态
     enableAnimate: true,         // 开启动画效果
 
-    reloadTimeout: 0,            // 回复成功后几秒后刷新
     animateSpeed: 500,           // 动画速度(毫秒)
     keepTime: 3000,              // 状态显示保持时间(毫秒)
     autoSaveInterval: 0.5,       // 自动保存间隔(分钟)
@@ -71,6 +70,7 @@ var $Content = null;     // 内容输入框
 var $Status = null;      // 状态框
 var $Counter = null;     // 字数统计框
 var $Preview = null;     // 预览框
+var $Submit = null;      // 回复按钮
 
 /* ==全局变量== */
 
@@ -214,7 +214,7 @@ function queryHTML(raw, selector)
 
 /* 返回相对地址 */
 function getRelativeURL(url) {
-    return url.replace(/http:\/\/www\.cc98\.org\/([a-z])/g, '$1');
+    return url.replace(/.*?:\/\/.*?\//, '');
 }
 
 /* 根据引用地址返回原帖地址 */
@@ -232,7 +232,7 @@ function getEditURL(url) {
 /* 返回帖子的最后一页 */
 function getLastPageURL(url)
 {
-    return url.replace(/(star=)\d*/, '$1' + LastPageN)
+    return getRelativeURL(url).replace(/(star=)\d*/, '$1' + LastPageN)
         .replace(/#.*/, "#bottom");
 }
 
@@ -417,7 +417,122 @@ function sendMessages(user, title, message) {
     }).error(postOnError);
 }
 
-/* Ajax Post提交错误回调函数 */
+/* 回复成功回调函数 */
+function replySuccess(data)
+{
+    var status, action, url;
+    
+    action = Args.edit ? '编辑' : '回复';
+
+    /* 清空旧状态信息 */
+    $Status.empty();
+
+    /* 提示信息 */
+    status = '✔ ' + action + '帖子成功, 页面将会立即刷新';
+
+    /* 显示居中 */
+    showStatus(status, 'norm', true);
+
+    /* 回帖后跳转到帖子最后一页 */
+    if (Options.gotoLast)
+        url = getLastPageURL(url);
+    else
+        url = Args.original;
+
+    /* Fix: 回帖后地址不刷新 */
+    /* 当URL Hash部分变化时, 刷新页面 */
+    $(window).one('hashchange', function () {
+        location.reload();
+    });
+
+    if (equalURL(location.href, url)) // 地址相同则直接刷新
+        location.reload();
+    else // 否则, 更换地址栏地址
+        location.href = url;
+}
+
+function equalURL(lhs, rhs)
+{
+    /* 标准化 */
+    lhs = getRelativeURL(lhs).toLowerCase();
+    rhs = getRelativeURL(rhs).toLowerCase();
+
+    return (lhs == rhs);
+}
+
+/* 显示回复/引用/编辑过程中的错误信息 */
+function showError(data, callback)
+{
+    /* 获取错误信息 */
+    var $error = queryHTML(data, 'table li');
+
+    /* 清空旧状态信息 */
+    $Status.empty();
+
+    /* 未知错误, 例如编辑他人的帖子内容 */
+    if ($error.length == 0) {
+        showStatus('✘ 未知错误, 无权限操作', 'error', true);
+        return;
+    }
+
+    /* 依次处理每个错误 */
+    $error.each(function () {
+        var status = this.firstChild.nodeValue; // 错误文本内容
+        status = status.replace(/^\s*|\s*$/g, ''); // 去除首尾空白
+        showStatus('✘ ' + status, 'error', true);
+    });
+
+    /* 如果提供callback函数, 对错误信息做进一步的处理 */
+    if (callback && callback instanceof Function)
+        callback($error);
+}
+
+/* 回复错误回调函数 */
+function replyError(data)
+{
+    showError(data, function($error) {
+        var value = $Submit.val();
+
+        /* 10秒间隔内回复错误 */
+        if ($error.text().indexOf('限制发贴距离时间为10秒') == -1)
+            return;
+
+        /* 开始10秒倒计时 */
+        $Submit.val('[10秒]');
+
+        for (var i = 9; i >= 1; i--) {
+            setTimeout((function (i) {
+                return function () { 
+                    $Submit.val('[' + i + '秒]'); 
+                };
+            })(i), (10 - i) * 1000);
+        }
+
+        /* 10秒后重新启动回复 */
+        setTimeout(function () {
+            $Submit.val(value).prop('disabled', false);
+
+            /* 仅在唯一错误以及自动回复功能开启时 */
+            if ($error.length != 1 || !Options.autoReply)
+                return;
+
+            /* 自动提交回复 */
+            submitReply();
+        }, 10 * 1000);
+    });
+}
+
+/* Ajax Post提交成功回调函数 */
+function postOnSuccess(data)
+{
+    if (data.indexOf('将在3秒后自动返回') != -1) {
+        replySuccess(data); // 回复成功
+    } else {
+        replyError(data);  // 回复错误
+    }
+}
+
+/* Ajax Get/Post错误回调函数 */
 function postOnError(xhr)
 {
     var status = [
@@ -428,111 +543,6 @@ function postOnError(xhr)
 
     /* 显示居中 */
     showStatus(status, 'error', true);
-}
-
-/* 跳转到指定的URL地址 */
-function reloadURL(url)
-{
-    /* 回帖后跳转到帖子最后一页 */
-    if (Options.gotoLast)
-        url = getLastPageURL(url);
-
-    /* 强制刷新页面(即使URL hash不一样) */
-    location.href = url;
-    location.reload();
-}
-
-/* 回复成功回调函数 */
-function replySuccess()
-{
-    var status, action;
-    
-    action = Args.edit ? '编辑' : '回复';
-
-    /* 清空旧状态信息 */
-    $Status.empty();
-
-    /* 提示信息 */
-    if (Options.reloadTimeout == 0)
-        status = '✔ ' + action + '帖子成功, 页面将会立即刷新';
-    else
-        status = '✔ ' + action + '帖子成功，将会在' + Options.reloadTimeout
-             + '秒后自动刷新';
-
-    /* 显示居中 */
-    showStatus(status, 'norm', true);
-
-    /* 延迟刷新 */
-    setTimeout(function () {
-        reloadURL(Args.original);
-    }, Options.reloadTimeout);
-}
-
-/* 回复错误回调函数 */
-function replyError()
-{
-    var $error, num, status;
-
-    /* 获取错误信息 */
-    $error = queryHTML(data, 'table li');
-    num = $error.length;
-
-    /* 清空旧状态信息 */
-    $Status.empty();
-
-    /* 未知错误, 例如编辑他人的帖子内容 */
-    if (num == 0) {
-        showStatus('✘ 未知错误, 无权限操作', 'error', true);
-        return;
-    }
-
-    /* 依次处理每个错误 */
-    $error.each(function () {
-        var $submitBtn, value;
-
-        status = this.firstChild.nodeValue; // 错误文本内容
-        status = status.replace(/^\s*|\s*$/g, ''); // 去除首尾空白
-
-        showStatus('✘ ' + status, 'error', true);
-
-        /* 10秒间隔内回复错误 */
-        if (status.indexOf('本论坛限制发贴距离时间为10秒') != -1) {
-            $submitBtn = $Popup.find('#btn_submit');
-            value = $submitBtn.val();
-
-            /* 开始10秒倒计时 */
-            $submitBtn.val('[10秒]');
-
-            for (var i = 9; i >= 1; i--) {
-                setTimeout((function (i) {
-                    return function () { 
-                        $submitBtn.val('[' + i + '秒]'); 
-                    };
-                })(i), (10 - i) * 1000);
-            }
-
-            /* 10秒后重新启动回复 */
-            setTimeout(function () {
-                $submitBtn.val(value);
-
-                if (num == 1 && Options.autoReply) { // 自动回复
-                    submitReply();
-                } else { // 手动回复
-                    $submitBtn.prop('disabled', false);
-                }
-            }, 10 * 1000);
-        }
-    });
-}
-
-/* Ajax Post提交成功回调函数 */
-function postOnSuccess(data)
-{
-    if (data.indexOf('将在3秒后自动返回') != -1) {
-        replySuccess(); // 回复成功
-    } else {
-        replyError();  // 回复错误
-    }
 }
 
 /* 利用Ajax Post方法提交帖子 */
@@ -634,7 +644,7 @@ function createReplyBtns() {
         '</a>'
     ].join('');
 
-    $('a[onclick*="messanger.asp"]').parent('td').append(html) // 添加到文档中
+    $('a[href*="dispbbslz.asp"]').parent('td').append(html) // 添加到文档中
         .find('.rim_btn_img').attr('src', function () {  // 设定按钮的地址
             return getBtnURL(this); 
         });
@@ -735,7 +745,7 @@ function createReplyPopup() {
     });
 
     /* 设定主题 */
-    $Popup.find('#rim_subject').val('Re: ' + Args.title);
+    //$Popup.find('#rim_subject').val('Re: ' + Args.title);
 
     /* 设置文本框样式和占位文字 */
     $Content = $Popup.find('#rim_content');
@@ -759,6 +769,7 @@ function createReplyPopup() {
     $Status = $Popup.find('#rim_statusbox');
     $Counter = $Popup.find('#rim_cntbox');
     $Preview = $Popup.find('#rim_previewbox');
+    $Submit = $Popup.find('#btn_submit');
 
     /* 隐藏 */
     $Popup.css('display', 'none');
@@ -779,6 +790,11 @@ function getQuoteContent(data)
 
     /* 获取引用的内容 */
     value = queryHTML(data, 'textarea#content').val();
+
+    if (value === undefined) {
+        showError(data);
+        return;
+    }
 
    /* 删除多余的空行 */
     value = value.replace(rbegdupblank, '\n$1\n\n')
@@ -819,8 +835,10 @@ function getEditContent(data)
     var value = queryHTML(data, 'textarea#content').val();
 
     /* 获取帖子内容失败, 例如编辑他人帖子 */
-    if (value === undefined)
-        value = '您没有足够的权限编辑本帖子，请和管理员联系。';
+    if (value === undefined) {
+        showError(data);
+        return;
+    }
 
     /* 增加到回复内容输入框 */
     $Content.val(value).focus();
@@ -844,11 +862,10 @@ function insertIntoTextarea(text)
 
 /* 显示弹出回复框 */
 function showPopup(name, ele) {
-    var $actionBtn, quoteURL, editURL;
+    var quoteURL, editURL;
     
-    /* 禁用回复与预览按钮 */
-    $actionBtn = $Popup.find('#btn_submit, #btn_preview');
-    $actionBtn.prop('disabled', true);
+    /* 禁用回复按钮 */
+    $Submit.prop('disabled', true);
 
     /* 显示回复框 */
     $Popup.slideDown(Options.animateSpeed);
@@ -1049,16 +1066,14 @@ function togglePreview()
 /* 监听回复文本框按键等事件 */
 function textareaHandlers()
 {
-    var $actionBtn, remain, last, pattern;
-
-    $actionBtn = $Popup.find('#btn_submit, #btn_preview');
+    var remain, last, pattern;
 
     /* 实时统计字数 */
     remain = showCharCount();
 
     /* 如果未输入数据则禁用动作按钮 */
     if (remain == Options.maxTextareaLength) {
-        $actionBtn.prop('disabled', true);
+        $Submit.prop('disabled', true);
         return;
     }
 
@@ -1073,8 +1088,8 @@ function textareaHandlers()
         }
     }
 
-    /* 激活动作按钮 */
-    $actionBtn.prop('disabled', false);
+    /* 激活回复按钮 */
+    $Submit.prop('disabled', false);
 
     /* 激活自动备份 */
     if (AutoSaveTimer == -1)　{
