@@ -4,7 +4,7 @@
  <name>CC98 Reply Improved</name> 
  <show_icon>false</show_icon> 
  <description>改进版的CC98快速回复/引用/编辑功能</description> 
- <version>0.9.7</version>
+ <version>0.9.7.1</version>
  <request_api_version>1</request_api_version>
  <author>tuantuan</author>
 

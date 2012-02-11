@@ -1,7 +1,7 @@
 // ==UserScript==
 // @id             reply_improved
 // @name           Reply Improved
-// @version        0.9.7
+// @version        0.9.7.1
 // @namespace      http://www.cc98.org
 // @author         tuantuan <dangoakachan@foxmail.com>
 // @description    Improve the CC98's native reply functions.
@@ -214,7 +214,7 @@ function queryHTML(raw, selector)
 
 /* 返回相对地址 */
 function getRelativeURL(url) {
-    return url.replace(/.*?:\/\/.*?\//, '');
+    return url.replace(/http:\/\/www\.cc98\.org\/([a-z])/g, '$1');
 }
 
 /* 根据引用地址返回原帖地址 */
@@ -490,6 +490,9 @@ function showError(data, callback)
 /* 回复错误回调函数 */
 function replyError(data)
 {
+    /* 启用回复按钮 */
+    $Submit.prop('disabled', false);
+
     showError(data, function($error) {
         var value = $Submit.val();
 
@@ -499,6 +502,7 @@ function replyError(data)
 
         /* 开始10秒倒计时 */
         $Submit.val('[10秒]');
+        $Submit.prop('disabled', true);
 
         for (var i = 9; i >= 1; i--) {
             setTimeout((function (i) {
@@ -557,7 +561,7 @@ function ajaxReply(subject, content, face)
         ['passwd', Args.passwd],
         ['content', encode(content)],
         ['expression', face],
-        ['subject', subject],
+        ['subject', encode(subject)],
         ['totalusetable', 'bbs1'],
         ['signflag', 'yes']
     ];
@@ -746,11 +750,13 @@ function createReplyPopup() {
 
     /* 设定主题 */
     //$Popup.find('#rim_subject').val('Re: ' + Args.title);
+    $Popup.find('#rim_subject').attr('placeholder', '帖子标题是可选的'
+        + '(首楼编辑除外), 最多可输入' + Options.maxSubjectLength + '字节');
 
     /* 设置文本框样式和占位文字 */
     $Content = $Popup.find('#rim_content');
     $Content.attr('placeholder', '请输入回复内容, 最多可输入' 
-        + Options.maxTextareaLength + '字');
+        + Options.maxTextareaLength + '字节(每个汉字占2个字节)');
 
     /* 扩展用户设置的弹出回复框样式 */
     $Popup.css({
@@ -879,7 +885,7 @@ function showPopup(name, ele) {
 
     /* 获取帖子引用地址 */
     quoteURL = $(ele).parent('a').siblings()
-        .filter( 'a[href*="reannounce.asp"]').attr('href');
+        .filter('a[href*="reannounce.asp"]').attr('href');
 
     /* 如果找不到引用地址(一般不会发生) */
     if (!quoteURL) name = 'reply'; 

@@ -1,6 +1,6 @@
 {
     "name": "CC98 Reply Improved",
-    "version": "0.9.7",
+    "version": "0.9.7.1",
     "description":  "改进版的CC98快速回复/引用/编辑功能",
     "update_url": "https://raw.github.com/dangoakachan/cc98/master/reply_improved/updates.xml",
     "content_scripts": [
