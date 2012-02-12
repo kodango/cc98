@@ -876,13 +876,6 @@ function showPopup(name, ele) {
     /* 显示回复框 */
     $Popup.slideDown(Options.animateSpeed);
 
-    /* 如果不是从页面上点击按钮触发(如快捷键) */
-    if (!ele) {
-        /* 原帖地址为当前地址 */
-        Args.original = getRelativeURL(location.href);
-        return;
-    }
-
     /* 获取帖子引用地址 */
     quoteURL = $(ele).parent('a').siblings()
         .filter('a[href*="reannounce.asp"]').attr('href');
@@ -897,6 +890,7 @@ function showPopup(name, ele) {
             /* Ajax回复post地址 */
             Args.post = 'SaveReAnnounce.asp?method=fastreply&BoardID=' 
                 + Args.boardid;
+            /* 原帖地址为当前地址 */
             Args.original = getRelativeURL(location.href);
 
             break;
